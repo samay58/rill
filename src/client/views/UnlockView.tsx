@@ -2,7 +2,7 @@ import { FormEvent, useState } from 'react';
 import { unlock } from '../api';
 
 interface UnlockViewProps {
-  onUnlocked: () => void;
+  onUnlocked: () => void | Promise<void>;
 }
 
 export function UnlockView({ onUnlocked }: UnlockViewProps) {
@@ -17,7 +17,7 @@ export function UnlockView({ onUnlocked }: UnlockViewProps) {
     try {
       await unlock(token);
       setToken('');
-      onUnlocked();
+      await onUnlocked();
     } catch (unlockError) {
       setError(unlockError instanceof Error ? unlockError.message : 'Unlock failed.');
     } finally {

@@ -1,5 +1,9 @@
 # Rill
 
+<p align="center">
+  <img src="docs/assets/rill-github-repo-cover-page.png" alt="Rill cover: a quiet personal feed reader for chosen sources" width="100%">
+</p>
+
 Rill is a private, local-first feed reader for chosen RSS, Atom, and JSON Feed sources. It is built as a Vite React PWA plus a Cloudflare Worker API backed by D1 and Queues.
 
 The product covenant is simple: chosen sources, finite sessions, no recommendations, no generated summaries, no analytics, no ad-tech surface.

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rill-app-shell-v1';
+const CACHE_NAME = 'rill-app-shell-v2';
 const CORE_URLS = ['/manifest.webmanifest', '/icon.svg'];
 const SHELL_ASSET_PATTERN = /(?:src|href)=["']([^"']+)["']/g;
 
@@ -55,11 +55,35 @@ async function cacheFirst(request) {
   return response;
 }
 
+async function networkFirstNavigation(request) {
+  const cache = await caches.open(CACHE_NAME);
+  try {
+    const response = await fetch(request, { cache: 'reload' });
+    if (response.ok) {
+      const indexHtml = await response.clone().text();
+      const cachedIndex = new Response(indexHtml, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers
+      });
+      await cache.put(request, cachedIndex.clone());
+      await cache.put('/index.html', cachedIndex.clone());
+      await cache.put('/', cachedIndex.clone());
+      await Promise.all([...CORE_URLS, ...shellAssetUrls(indexHtml)].map((url) => cache.add(url).catch(() => undefined)));
+    }
+    return response;
+  } catch (error) {
+    const cached = await caches.match(request) || await caches.match('/index.html') || await caches.match('/');
+    if (cached) return cached;
+    throw error;
+  }
+}
+
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return;
   if (event.request.mode === 'navigate') {
-    event.respondWith(caches.match('/index.html').then((cached) => cached || fetch(event.request)));
+    event.respondWith(networkFirstNavigation(event.request));
     return;
   }
   event.respondWith(cacheFirst(event.request));

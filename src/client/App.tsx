@@ -98,6 +98,13 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
     applyCached(await bootstrapFromServer(store, syncApi));
   }
 
+  async function finishUnlock() {
+    const store = runtimeStore ?? localStore ?? await openRillLocalStore();
+    setRuntimeStore(store);
+    applyCached(await bootstrapFromServer(store, syncApi));
+    setIsUnlocked(true);
+  }
+
   async function refreshEverything() {
     setIsRefreshingAll(true);
     try {
@@ -228,7 +235,7 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
     );
   }
 
-  if (!isUnlocked) return <UnlockView onUnlocked={() => setIsUnlocked(true)} />;
+  if (!isUnlocked) return <UnlockView onUnlocked={finishUnlock} />;
 
   const selectedId = selectedEntryId(route);
   const selectedEntry = selectedId ? entries.find((entry) => entry.id === selectedId) ?? null : null;

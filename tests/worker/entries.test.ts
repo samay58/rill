@@ -122,6 +122,27 @@ describe('entries routes', () => {
     expect(payload.entries.map((result) => result.id)).toEqual(['entry-1']);
   });
 
+  it('returns clean preview text from search when old D1 rows contain raw markup', async () => {
+    const db = new FakeRillD1();
+    db.feeds.push(feed({ title: 'Techmeme' }));
+    db.subscriptions.push(subscription());
+    db.entries.push(entry({
+      id: 'raw-search',
+      stable_external_id: 'raw-search',
+      title: 'Palantir Slack logs and staff interviews',
+      summary_text: '<P><A HREF="http://www.techmeme.com/260426/p8#a260426p8" TITLE="Techmeme permalink"><IMG WIDTH=11 HEIGHT=12 SRC="http://www.techmeme.com/img/pml.png"></A> Makena Kelly / <A HREF="http://arstechnica.com/">Ars Technica</A>:<BR> <SPAN STYLE="font-size:1.3em;"><B><A HREF="https://arstechnica.com/tech-policy/2026/04/palantir-employees-are-talking-about-companys-descent-into-fascism/">Palantir Slack logs and staff interviews reveal internal debates</A></B></SPAN>&nbsp; &mdash;&nbsp; It took just a few months for employees to question the company commitments to civil liberties.</P>',
+      content_text: '<p>Search body with <strong>markup</strong>.</p>'
+    }));
+
+    const search = await handleEntriesRoute(await authed('/api/search?q=civil%20liberties'), envFor(db), () => 1000);
+    const payload = await search!.json() as { ok: true; entries: Array<{ summary_text: string | null; content_text: string | null }> };
+
+    expect(payload.entries).toHaveLength(1);
+    expect(payload.entries[0].summary_text).not.toMatch(/[<>]|href=|IMG/i);
+    expect(payload.entries[0].summary_text).toContain('It took just a few months');
+    expect(payload.entries[0].content_text).toBe('Search body with markup.');
+  });
+
   it('searches source and title terms by token relevance instead of raw substring noise', async () => {
     const db = new FakeRillD1();
     db.feeds.push(feed({ id: 'om-feed', title: 'On my Om', canonical_feed_url: 'https://om.co/feed.xml' }));

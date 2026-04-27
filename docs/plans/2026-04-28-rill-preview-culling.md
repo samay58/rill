@@ -4,6 +4,8 @@
 
 > **Status (2026-04-27):** Implemented on `fix/reading-quality`. The shipped version centralizes plain-text preview cleanup in `src/shared/entryText.ts`, normalizes new feed text during parsing, repairs stale IndexedDB rows on cache load, and applies the same preview/search rules in Today, Search, local cache search, and Worker search. The implementation intentionally avoids a database migration.
 
+> **Follow-up hardening (2026-04-27):** The preview cleaner is now enforced at every read boundary too: Worker entry responses return plain `summary_text` / `content_text`, bootstrap treats D1 as the authoritative snapshot and drops orphaned local entries, manual unlock runs a fresh bootstrap, and the service worker uses a new cache with network-first navigations so old app bundles do not keep stale preview behavior alive.
+
 **Goal:** Make Today previews calm and scannable by removing raw HTML, trimming noisy feed bodies, and showing only useful two-line plain-text excerpts.
 
 **Architecture:** Fix this at two layers. First, normalize feed summaries into plain text during ingestion so future entries store clean preview text while Reader still keeps sanitized HTML. Second, defensively cull Today excerpts at render time so existing IndexedDB and D1 rows with raw HTML stop breaking the UI immediately.

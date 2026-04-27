@@ -137,6 +137,28 @@ describe('Today and Reader', () => {
 
 
 
+  it('never renders raw aggregator markup in Today previews', () => {
+    const host = render(<TodayView entries={[entry('aggregator-raw', {
+      title: 'Publisher announces a five-principle framework for durable development',
+      source_title: 'Techmeme',
+      summary_text: '<P><A HREF="http://www.techmeme.com/260426/p12#a260426p12" TITLE="Techmeme permalink"><IMG WIDTH=11 HEIGHT=12 SRC="http://www.techmeme.com/img/pml.png" STYLE="border:none;padding:0;margin:0;"></A> Marcus Schuler / <A HREF="https://example.com/">Example</A>:<BR> <SPAN STYLE="font-size:1.3em;"><B><A HREF="https://example.com/framework">Publisher announces a five-principle framework for durable development</A></B></SPAN>&nbsp; &mdash;&nbsp; Publisher published a five-principle framework on Sunday for durable development.</P>'
+    }), entry('optout-raw', {
+      title: 'New Year, New Digital You',
+      source_title: 'News from the Opt Out Project',
+      published_at: Date.now() - 2 * 60 * 60 * 1000,
+      summary_text: '<p>Dear followers of The Opt Out Project,</p> <p>Today I announce the start of <a href="https://www.optoutproject.net/the-cyber-cleanse-take-back-your-digital-footprint/" rel="noopener noreferrer nofollow" target="_blank">Take Back Your Digital Footprint</a>: <strong>a 21-day cyber-cleanse designed to help you retrieve your digital life from the Tech giants.</strong></p>'.repeat(4)
+    })]} onOpenEntry={() => undefined} />);
+
+    const previews = [...host.querySelectorAll('.entry-excerpt')].map((node) => node.textContent ?? '');
+    expect(previews).toHaveLength(2);
+    for (const preview of previews) {
+      expect(preview).not.toMatch(/[<>]|href=|target=|IMG|<\/p>/i);
+      expect(preview.length).toBeLessThanOrEqual(181);
+    }
+    expect(previews.some((preview) => preview.includes('Publisher published a five-principle framework on Sunday'))).toBe(true);
+    expect(previews.some((preview) => preview.includes('Dear followers of The Opt Out Project'))).toBe(true);
+  });
+
   it('wires Today header search and refresh actions', async () => {
     const onSearch = vi.fn();
     const onRefresh = vi.fn(async () => undefined);

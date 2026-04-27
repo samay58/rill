@@ -1,4 +1,4 @@
-import { compareRankedEntries, rankSearchEntry } from '../shared/entryText';
+import { compareRankedEntries, plainTextFromMaybeHtml, rankSearchEntry } from '../shared/entryText';
 import type {
   Entry,
   EntryStatePatch,
@@ -30,6 +30,17 @@ export interface SubscriptionFeedExport {
   canonical_feed_url: string;
   site_url: string | null;
   folder: string | null;
+}
+
+function cleanEntryText<T extends Entry | EntryWithState>(entry: T): T {
+  const summaryText = plainTextFromMaybeHtml(entry.summary_text);
+  const contentText = plainTextFromMaybeHtml(entry.content_text);
+  if (summaryText === entry.summary_text && contentText === entry.content_text) return entry;
+  return { ...entry, summary_text: summaryText, content_text: contentText };
+}
+
+function cleanEntryList<T extends Entry | EntryWithState>(entries: T[]): T[] {
+  return entries.map(cleanEntryText);
 }
 
 export async function getUserByHandle(db: D1Database, handle: string): Promise<(User & { token_hash: string }) | null> {
@@ -194,7 +205,7 @@ export async function listEntriesForUser(db: D1Database, userId: string, limit =
     ORDER BY COALESCE(e.published_at, e.created_at) DESC
     LIMIT ?
   `).bind(...args).all<Entry>();
-  return result.results;
+  return cleanEntryList(result.results);
 }
 
 export async function listEntryStateForUser(db: D1Database, userId: string, since?: UnixMs): Promise<EntryUserState[]> {
@@ -275,11 +286,11 @@ export async function listTodayEntries(db: D1Database, userId: string, limit = 2
     ORDER BY COALESCE(e.published_at, e.created_at) DESC
     LIMIT ?
   `).bind(...params).all<EntryWithState>();
-  return result.results;
+  return cleanEntryList(result.results);
 }
 
 export async function getEntryForUser(db: D1Database, userId: string, entryId: string): Promise<EntryWithState | null> {
-  return db.prepare(`
+  const entry = await db.prepare(`
     SELECT e.*, f.title AS source_title, s.read_at, s.saved_at, s.archived_at, s.last_opened_at
     FROM entries e
     JOIN feeds f ON f.id = e.feed_id
@@ -287,6 +298,7 @@ export async function getEntryForUser(db: D1Database, userId: string, entryId: s
     LEFT JOIN entry_user_state s ON s.entry_id = e.id AND s.user_id = sub.user_id
     WHERE e.id = ?
   `).bind(userId, entryId).first<EntryWithState>();
+  return entry ? cleanEntryText(entry) : null;
 }
 
 export async function searchEntries(db: D1Database, userId: string, query: string, limit = 25): Promise<EntryWithState[]> {
@@ -301,7 +313,7 @@ export async function searchEntries(db: D1Database, userId: string, query: strin
     ORDER BY COALESCE(e.published_at, e.created_at) DESC
     LIMIT ?
   `).bind(userId, candidateLimit).all<EntryWithState>();
-  return result.results
+  return cleanEntryList(result.results)
     .map((entry) => ({ entry, rank: rankSearchEntry(entry, query) }))
     .filter((result): result is { entry: EntryWithState; rank: NonNullable<ReturnType<typeof rankSearchEntry>> } => result.rank !== null)
     .sort(compareRankedEntries)

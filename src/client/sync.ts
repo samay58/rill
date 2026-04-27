@@ -75,8 +75,49 @@ async function mergeServerPayload(store: LocalStore, payload: SyncPayload | Boot
   await setMetaValue(store, SYNC_CURSOR_KEY, payload.syncCursor, payload.serverTime);
 }
 
+async function replaceStore<T extends object>(store: LocalStore, storeName: 'feeds' | 'subscriptions' | 'entries' | 'entryState', values: T[]): Promise<void> {
+  await store.clear(storeName);
+  await store.putMany<T>(storeName, values);
+}
+
+function applyPendingMutation(state: EntryUserState | undefined, userId: string, mutation: PendingEntryMutation): EntryUserState {
+  return {
+    user_id: state?.user_id ?? userId,
+    entry_id: mutation.entry_id,
+    read_at: stateTimestamp(mutation.read, mutation.updated_at_client, state?.read_at ?? null),
+    saved_at: stateTimestamp(mutation.saved, mutation.updated_at_client, state?.saved_at ?? null),
+    archived_at: stateTimestamp(mutation.archived, mutation.updated_at_client, state?.archived_at ?? null),
+    last_opened_at: state?.last_opened_at ?? null,
+    updated_at: Math.max(state?.updated_at ?? 0, mutation.updated_at_client)
+  };
+}
+
+async function replaceWithBootstrapSnapshot(store: LocalStore, payload: BootstrapPayload): Promise<void> {
+  const pending = await store.getAll<PendingEntryMutation>('pendingMutations');
+  const entryIds = new Set(payload.entries.map((entry) => entry.id));
+
+  await Promise.all([
+    replaceStore<Feed>(store, 'feeds', payload.feeds),
+    replaceStore<Subscription>(store, 'subscriptions', payload.subscriptions),
+    replaceStore<Entry>(store, 'entries', payload.entries),
+    replaceStore<EntryUserState>(store, 'entryState', payload.entryState)
+  ]);
+
+  for (const mutation of pending) {
+    if (!entryIds.has(mutation.entry_id)) {
+      await store.delete('pendingMutations', mutation.entry_id);
+      continue;
+    }
+    const current = await store.get<EntryUserState>('entryState', mutation.entry_id);
+    await store.put<EntryUserState>('entryState', applyPendingMutation(current, payload.user.id, mutation));
+  }
+
+  await setMetaValue(store, USER_ID_KEY, payload.user.id, payload.serverTime);
+  await setMetaValue(store, SYNC_CURSOR_KEY, payload.syncCursor, payload.serverTime);
+}
+
 export async function bootstrapFromServer(store: LocalStore, api: RillSyncApi = defaultSyncApi): Promise<CachedClientState> {
-  await mergeServerPayload(store, await api.bootstrap());
+  await replaceWithBootstrapSnapshot(store, await api.bootstrap());
   return loadCachedState(store);
 }
 

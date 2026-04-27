@@ -37,6 +37,7 @@ afterEach(() => {
   container?.remove();
   container = null;
   root = null;
+  vi.unstubAllGlobals();
 });
 
 function feed(overrides: Partial<Feed> = {}): Feed {
@@ -155,6 +156,56 @@ describe('App local-first sync wiring', () => {
 
     expect(container!.querySelector('.unlock-card')).not.toBeNull();
     expect(container!.textContent).not.toContain('Private cached entry');
+  });
+
+  it('reloads the authoritative server snapshot immediately after manual unlock', async () => {
+    const store = new MemoryStore();
+    await store.put('feeds', feed({ title: 'Old local feed' }));
+    await store.put('subscriptions', subscription());
+    await store.put('entries', entry('stale-local', { title: 'Stale local entry' }));
+    await store.put('entryState', state('stale-local'));
+    await store.put('appMeta', { key: 'syncCursor', value: 5, updated_at: 5 });
+    await store.put('appMeta', { key: 'userId', value: 'user-1', updated_at: 5 });
+
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: true, user: { id: 'user-1', handle: 'samay' } }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' }
+    })));
+
+    let bootstrapCalls = 0;
+    await render(<App localStore={store} syncApi={api({
+      bootstrap: async () => {
+        bootstrapCalls += 1;
+        if (bootstrapCalls === 1) throw Object.assign(new Error('Unauthorized'), { status: 401 });
+        return {
+          user: { id: 'user-1', handle: 'samay', created_at: 1, updated_at: 1 },
+          feeds: [feed({ title: 'Server feed' })],
+          subscriptions: [subscription()],
+          entries: [entry('server-entry', { title: 'Fresh server entry' })],
+          entryState: [state('server-entry')],
+          serverTime: 200,
+          syncCursor: 200
+        };
+      },
+      syncSince: async () => { throw new Error('manual unlock must not use incremental sync first'); }
+    })} />);
+    await flush();
+    await flush();
+
+    const input = container!.querySelector<HTMLInputElement>('#token');
+    expect(input).not.toBeNull();
+    await act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+      valueSetter?.call(input, 'private-token');
+      input!.dispatchEvent(new InputEvent('input', { bubbles: true, data: 'private-token', inputType: 'insertText' }));
+    });
+    await click('.accent-button');
+    await flush();
+    await flush();
+
+    expect(container!.textContent).toContain('Fresh server entry');
+    expect(container!.textContent).not.toContain('Stale local entry');
+    expect(await store.get<Entry>('entries', 'stale-local')).toBeUndefined();
   });
 
   it('saves from Reader with clear feedback and immediately appears in Saved', async () => {

@@ -80,6 +80,24 @@ describe('bootstrap and sync routes', () => {
     expect(payload.syncCursor).toBe(1000);
   });
 
+  it('returns clean entry preview text even when old D1 rows contain raw markup', async () => {
+    const db = new FakeRillD1();
+    db.feeds.push(feed({ title: 'Techmeme' }));
+    db.subscriptions.push(subscription());
+    db.entries.push(entry('raw-entry', {
+      title: 'Publisher announces a five-principle framework for durable development',
+      summary_text: '<P><A HREF="http://www.techmeme.com/260426/p12#a260426p12" TITLE="Techmeme permalink"><IMG WIDTH=11 HEIGHT=12 SRC="http://www.techmeme.com/img/pml.png"></A> Marcus Schuler / <A HREF="https://example.com/source">Example</A>:<BR> <SPAN STYLE="font-size:1.3em;"><B><A HREF="https://example.com/sourceopenai-posts-five-principle-framework-for-agi-altman-concedes-bigger-role-2/">Publisher announces a five-principle framework for durable development</A></B></SPAN>&nbsp; &mdash;&nbsp; Publisher published a five-principle framework on Sunday for durable development.</P>',
+      content_text: '<p>Body with <strong>markup</strong>.</p>'
+    }));
+
+    const response = await handleSubscriptionsRoute(await authed('/api/bootstrap'), envFor(db), () => 1000);
+    const payload = await response!.json() as { entries: Array<{ summary_text: string | null; content_text: string | null }> };
+
+    expect(payload.entries[0].summary_text).not.toMatch(/[<>]|href=|IMG/i);
+    expect(payload.entries[0].summary_text).toContain('Publisher published a five-principle framework on Sunday');
+    expect(payload.entries[0].content_text).toBe('Body with markup.');
+  });
+
   it('returns only rows changed after the sync cursor', async () => {
     const db = new FakeRillD1();
     db.feeds.push(feed({ id: 'feed-1', updated_at: 10 }), feed({ id: 'feed-2', canonical_feed_url: 'https://example.com/2.xml', updated_at: 65 }));

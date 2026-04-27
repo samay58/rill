@@ -7,8 +7,11 @@ Run from the Rill repo root: `~/Projects/active/rill`.
 ```bash
 npm run verify
 npm run test:e2e
+npm run build
 npx wrangler dev
 ```
+
+If the browser still shows an old UI after a code change, stop Wrangler, rerun `npm run build`, start `npx wrangler dev` again, then hard-refresh the page once. Wrangler serves the built `dist/` assets; `localhost:8787` will not pick up client source edits until the app is rebuilt.
 
 ## Manual checks
 

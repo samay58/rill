@@ -133,9 +133,38 @@ describe('local-first sync', () => {
     expect(stored?.content_text).toBe('Cached body with markup.');
   });
 
-  it('bootstraps server records into the local cache without clearing pending mutations', async () => {
+  it('treats bootstrap as the authoritative server snapshot and drops orphan pending mutations', async () => {
     const store = new MemoryStore();
-    await store.put<PendingEntryMutation>('pendingMutations', { entry_id: 'entry-local', read: true, updated_at_client: 80, queued_at: 80, attempts: 0 });
+    await store.put('feeds', feed({ id: 'old-feed', title: 'Old Feed' }));
+    await store.put('subscriptions', subscription({ id: 'old-sub', feed_id: 'old-feed' }));
+    await store.put('entries', entry('stale-entry', { feed_id: 'old-feed', title: 'Stale raw entry' }));
+    await store.put('entryState', state('stale-entry', { read_at: 50, updated_at: 50 }));
+    await store.put<PendingEntryMutation>('pendingMutations', { entry_id: 'stale-entry', read: true, updated_at_client: 80, queued_at: 80, attempts: 1 });
+    await store.put<PendingEntryMutation>('pendingMutations', { entry_id: 'entry-server', saved: true, updated_at_client: 90, queued_at: 90, attempts: 0 });
+
+    const cached = await bootstrapFromServer(store, api({
+      bootstrap: async () => ({
+        user: { id: 'user-1', handle: 'samay', created_at: 1, updated_at: 1 },
+        feeds: [feed()],
+        subscriptions: [subscription()],
+        entries: [entry('entry-server', { title: 'Server entry' })],
+        entryState: [state('entry-server')],
+        serverTime: 125,
+        syncCursor: 125
+      })
+    }));
+
+    expect(cached.feeds.map((cachedFeed) => cachedFeed.id)).toEqual(['feed-1']);
+    expect(cached.subscriptions.map((cachedSubscription) => cachedSubscription.id)).toEqual(['sub-1']);
+    expect(cached.entries.map((cachedEntry) => cachedEntry.id)).toEqual(['entry-server']);
+    expect(cached.entryState.map((cachedState) => cachedState.entry_id)).toEqual(['entry-server']);
+    expect(cached.pendingMutations.map((mutation) => mutation.entry_id)).toEqual(['entry-server']);
+    expect(await store.get<Entry>('entries', 'stale-entry')).toBeUndefined();
+  });
+
+  it('bootstraps server records into the local cache without clearing valid pending mutations', async () => {
+    const store = new MemoryStore();
+    await store.put<PendingEntryMutation>('pendingMutations', { entry_id: 'entry-server', read: true, updated_at_client: 140, queued_at: 80, attempts: 0 });
 
     const cached = await bootstrapFromServer(store, api({
       bootstrap: async () => ({
@@ -150,7 +179,8 @@ describe('local-first sync', () => {
     }));
 
     expect(cached.entries.map((cachedEntry) => cachedEntry.id)).toEqual(['entry-server']);
-    expect(cached.pendingMutations.map((mutation) => mutation.entry_id)).toEqual(['entry-local']);
+    expect(cached.pendingMutations.map((mutation) => mutation.entry_id)).toEqual(['entry-server']);
+    expect(cached.entryState[0]).toMatchObject({ entry_id: 'entry-server', read_at: 140, updated_at: 140 });
     expect(cached.syncCursor).toBe(125);
   });
 
