@@ -1,5 +1,13 @@
-const CACHE_NAME = 'rill-app-shell-v2';
-const CORE_URLS = ['/manifest.webmanifest', '/icon.svg'];
+const CACHE_NAME = 'rill-app-shell-v3';
+const CORE_URLS = [
+  '/manifest.webmanifest',
+  '/favicon.ico',
+  '/icons/rill-icon-32.png',
+  '/icons/rill-icon-180.png',
+  '/icons/rill-icon-192.png',
+  '/icons/rill-icon-512.png',
+  '/icons/rill-icon-maskable-512.png'
+];
 const SHELL_ASSET_PATTERN = /(?:src|href)=["']([^"']+)["']/g;
 
 function shellAssetUrls(html) {
