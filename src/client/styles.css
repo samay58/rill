@@ -351,12 +351,14 @@ svg {
 }
 
 .reader-save {
+  flex: 0 0 auto;
   min-height: 28px;
   border-radius: 999px;
-  padding: 7px 12px;
+  padding: 7px 16px;
   color: var(--color-accent);
   background: var(--color-accent-light);
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .reader-article {
