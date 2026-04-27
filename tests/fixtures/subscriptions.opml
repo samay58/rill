@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head><title>Rill Subscriptions</title></head>
+  <body>
+    <outline text="Tech">
+      <outline text="Daring Fireball" title="Daring Fireball" type="rss" xmlUrl="https://daringfireball.net/feeds/main" htmlUrl="https://daringfireball.net/" />
+      <outline text="Daring Duplicate" type="rss" xmlUrl="https://daringfireball.net/feeds/main" htmlUrl="https://duplicate.example/" />
+      <outline text="No URL" title="Invalid" />
+    </outline>
+    <outline text="Personal">
+      <outline text="Kottke" type="rss" xmlUrl="https://kottke.org/index.xml" htmlUrl="https://kottke.org/" />
+    </outline>
+  </body>
+</opml>

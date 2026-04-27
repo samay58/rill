@@ -1,0 +1,24 @@
+name = "rill"
+main = "src/worker/index.ts"
+compatibility_date = "2026-04-27"
+
+[assets]
+directory = "dist"
+binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "rill"
+database_id = "local-rill-dev"
+
+[[queues.producers]]
+binding = "REFRESH_QUEUE"
+queue = "rill-refresh"
+
+[[queues.consumers]]
+queue = "rill-refresh"
+max_batch_size = 5
+max_batch_timeout = 10
+
+[triggers]
+crons = ["*/30 * * * *"]

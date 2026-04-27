@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Guid Feed</title>
+    <link>https://example.com/</link>
+    <description>A feed with guids</description>
+    <language>en</language>
+    <item>
+      <title>First guided post</title>
+      <link>https://example.com/posts/first?utm_source=newsletter</link>
+      <guid isPermaLink="false">guid-post-1</guid>
+      <pubDate>Mon, 27 Apr 2026 10:00:00 GMT</pubDate>
+      <description><![CDATA[<p>Hello <strong>reader</strong>.</p>]]></description>
+    </item>
+    <item>
+      <title>Second guided post</title>
+      <link>https://example.com/posts/second</link>
+      <guid isPermaLink="false">guid-post-2</guid>
+      <pubDate>Mon, 27 Apr 2026 11:00:00 GMT</pubDate>
+      <description>Plain summary</description>
+    </item>
+  </channel>
+</rss>

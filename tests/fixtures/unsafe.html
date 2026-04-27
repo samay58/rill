@@ -1,0 +1,9 @@
+<article>
+  <h1 onclick="steal()">Unsafe</h1>
+  <p>Hello<script>alert('x')</script> world.</p>
+  <a href="javascript:alert('x')" onmouseover="steal()">bad link</a>
+  <a href="https://safe.example/path">safe link</a>
+  <img src="https://images.example/pixel.png" onerror="steal()" />
+  <iframe src="https://evil.example"></iframe>
+  <form action="https://evil.example"><input name="x" /></form>
+</article>
