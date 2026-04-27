@@ -23,26 +23,13 @@ Use `~/Projects/active/rill` as the project root.
 npm ci
 ```
 
-Apply the D1 schema locally:
+Initialize the local Worker database and session secret from the checkout or worktree you are actually running. Each worktree has its own local Wrangler state, so repeat this after switching to `./.worktrees/...`.
 
 ```bash
-npx wrangler d1 migrations apply rill --local
+TOKEN='replace-with-a-long-random-token' npm run setup:local
 ```
 
-Seed the personal alpha user. Use a long random token and keep it out of git.
-
-```bash
-TOKEN='replace-with-a-long-random-token'
-TOKEN_HASH=$(TOKEN="$TOKEN" node -e "const { createHash } = require('node:crypto'); console.log(createHash('sha256').update(process.env.TOKEN).digest('hex'))")
-NOW_MS=$(node -e "console.log(Date.now())")
-npx wrangler d1 execute rill --local --command "INSERT OR REPLACE INTO users (id, handle, token_hash, created_at, updated_at) VALUES ('user-1', 'samay', '$TOKEN_HASH', $NOW_MS, $NOW_MS)"
-```
-
-Create `.dev.vars` for local Worker sessions:
-
-```bash
-SESSION_SECRET='replace-with-a-long-random-session-secret'
-```
+`setup:local` applies the D1 migration, creates `.dev.vars` with `SESSION_SECRET` when missing, and stores only the SHA-256 hash of the token in the local `users` table. Keep the raw token out of git.
 
 The raw unlock token is posted once to `/api/auth/unlock`. After unlock, Rill uses a signed httpOnly session cookie.
 

@@ -9,6 +9,25 @@ function json(data: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(data), { ...init, headers });
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isMissingD1Schema(error: unknown): boolean {
+  return /no such table:/i.test(errorMessage(error));
+}
+
+function unavailableUnlockResponse(error: unknown): Response {
+  if (isMissingD1Schema(error)) {
+    return json({
+      ok: false,
+      code: 'database_uninitialized',
+      message: 'Rill local database is not initialized. Stop Wrangler, run `TOKEN=... npm run setup:local`, then start `npx wrangler dev` again.'
+    }, { status: 503 });
+  }
+  return json({ ok: false, code: 'unlock_unavailable', message: 'Unlock is unavailable.' }, { status: 503 });
+}
+
 async function readJsonBody(request: Request): Promise<Record<string, unknown>> {
   try {
     const body = await request.json();
@@ -33,7 +52,7 @@ export async function handleAuthRoute(request: Request, env: Env, clock: Clock =
       if (error instanceof Response) {
         return json({ ok: false, code: error.status === 401 ? 'invalid_token' : 'unlock_unavailable', message: await error.text() }, { status: error.status });
       }
-      throw error;
+      return unavailableUnlockResponse(error);
     }
   }
 

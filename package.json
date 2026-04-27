@@ -12,7 +12,8 @@
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
     "lint:privacy": "node scripts/check-privacy.mjs",
-    "verify": "npm run typecheck && npm test && npm run build && npm run lint:privacy"
+    "verify": "npm run typecheck && npm test && npm run build && npm run lint:privacy",
+    "setup:local": "node scripts/setup-local.mjs"
   },
   "dependencies": {
     "dompurify": "latest",
