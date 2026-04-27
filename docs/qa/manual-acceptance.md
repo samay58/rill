@@ -18,11 +18,14 @@ npx wrangler dev
 4. Read Today and confirm the list is finite, calm, and sorted newest first.
 5. Confirm Today previews are compact: no raw `<p>`, `href=`, `target=`, or long article-body dumps appear in the list. Each preview is plain text and visually capped at two lines.
 6. Open Reader and confirm the entry is marked read.
-7. Save an entry, then mark it unread; saved state must remain separate from read state.
-8. Archive an entry and confirm it disappears from Today.
-9. Install or reopen the PWA, go offline, and confirm the app shell and cached entries still open.
-10. Import OPML, export OPML, then import the export again without duplicates.
-11. In DevTools Network, confirm no third-party scripts, external fonts, analytics, or direct remote article images load. Remote images must go through `/api/image` only.
+7. Save an entry, confirm the Reader button changes to `Saved`, then open Saved and confirm the entry is there.
+8. Mark that saved entry unread; saved state must remain separate from read state.
+9. Search for a known source name such as `Om my Om`; results should prioritize that source and not unrelated aggregator items.
+10. Refresh the browser and confirm Rill reopens without asking for the token again while the session is valid.
+11. Archive an entry and confirm it disappears from Today.
+12. Install or reopen the PWA, go offline, and confirm the app shell and cached entries still open.
+13. Import OPML, export OPML, then import the export again without duplicates.
+14. In DevTools Network, confirm no third-party scripts, external fonts, analytics, or direct remote article images load. Remote images must go through `/api/image` only.
 
 ## Notes
 

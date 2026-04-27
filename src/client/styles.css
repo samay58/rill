@@ -374,6 +374,15 @@ svg {
   line-height: 1.4;
 }
 
+.reader-state-note {
+  margin: -12px 0 22px;
+  color: var(--color-accent);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
 .reader-article h1 {
   margin: 0 0 28px;
   color: var(--color-text-primary);

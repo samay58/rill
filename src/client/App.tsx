@@ -50,6 +50,10 @@ function entriesFromCache(cache: CachedClientState): ReadingEntry[] {
     });
 }
 
+function isAuthFailure(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'status' in error && (error as { status?: unknown }).status === 401;
+}
+
 function sourceRows(feeds: Feed[], subscriptions: Subscription[], entries: ReadingEntry[], refreshingSourceIds: Set<string>): SourceViewModel[] {
   const feedById = new Map(feeds.map((feed) => [feed.id, feed]));
   return subscriptions.map((subscription) => {
@@ -79,6 +83,7 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
   const [isRefreshingAll, setIsRefreshingAll] = useState(false);
   const [refreshingSourceIds, setRefreshingSourceIds] = useState<Set<string>>(() => new Set());
   const shouldAutoSync = initialEntries.length === 0 || Boolean(localStore);
+  const [isCheckingSession, setIsCheckingSession] = useState(!initialUnlocked && shouldAutoSync);
 
   function applyCached(cache: CachedClientState) {
     setEntries(entriesFromCache(cache));
@@ -116,6 +121,43 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
       });
     }
   }
+
+  useEffect(() => {
+    if (isUnlocked || !shouldAutoSync) {
+      setIsCheckingSession(false);
+      return;
+    }
+    let cancelled = false;
+
+    async function checkExistingSession() {
+      const store = localStore ?? await openRillLocalStore();
+      if (cancelled) return;
+      setRuntimeStore(store);
+      const cached = await loadCachedState(store);
+      if (cached.userId) applyCached(cached);
+      try {
+        const serverCache = await bootstrapFromServer(store, syncApi);
+        if (cancelled) return;
+        applyCached(serverCache);
+        setIsUnlocked(true);
+      } catch (error) {
+        if (isAuthFailure(error)) return;
+        if (!cancelled && cached.userId && (cached.entries.length > 0 || cached.subscriptions.length > 0)) {
+          applyCached(cached);
+          setIsUnlocked(true);
+        }
+      } finally {
+        if (!cancelled) setIsCheckingSession(false);
+      }
+    }
+
+    void checkExistingSession().catch(() => {
+      if (!cancelled) setIsCheckingSession(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isUnlocked, localStore, shouldAutoSync, syncApi]);
 
   useEffect(() => {
     if (!isUnlocked || !shouldAutoSync) return;
@@ -174,6 +216,16 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
     }));
     persistEntryPatch(entryId, { read: true });
     setRoute(`reader:${entryId}`);
+  }
+
+  if (isCheckingSession) {
+    return (
+      <main className="unlock-shell" aria-label="Opening Rill">
+        <div className="unlock-card">
+          <div className="unlock-wordmark">rill</div>
+        </div>
+      </main>
+    );
   }
 
   if (!isUnlocked) return <UnlockView onUnlocked={() => setIsUnlocked(true)} />;

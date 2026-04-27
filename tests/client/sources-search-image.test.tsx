@@ -105,7 +105,38 @@ describe('Sources, Search, and image loading', () => {
     expect(container!.textContent).not.toContain('No match');
   });
 
+  it('ranks source-title matches above raw body noise for multi-word searches', async () => {
+    const store = new MemoryStore();
+    await store.put('feeds', feed({ id: 'om-feed', title: 'On my Om', canonical_feed_url: 'https://om.co/feed.xml' }));
+    await store.put('feeds', feed({ id: 'tech-feed', title: 'Techmeme', canonical_feed_url: 'https://techmeme.com/feed.xml' }));
+    await store.put('subscriptions', subscription({ id: 'om-sub', feed_id: 'om-feed' }));
+    await store.put('subscriptions', subscription({ id: 'tech-sub', feed_id: 'tech-feed' }));
+    await store.put('entries', entry('om-entry', {
+      feed_id: 'om-feed',
+      title: 'Memory Is the Machine',
+      summary_text: 'A sharp On my Om dispatch about memory and machines.',
+      published_at: 100
+    }));
+    await store.put('entries', entry('tech-entry', {
+      feed_id: 'tech-feed',
+      title: 'Tech industry funding notes',
+      summary_text: '<A HREF="https://techmeme.com/story"><IMG SRC="http://techmeme.com/i.jpg"></A> My notes from company coverage and dot com links.',
+      content_text: '<A HREF="https://techmeme.com/story">company coverage</A> my archive',
+      published_at: 200
+    }));
+    await store.put('entryState', state('om-entry'));
+    await store.put('entryState', state('tech-entry'));
+    await store.put('appMeta', { key: 'syncCursor', value: 1, updated_at: 1 });
+    await store.put('appMeta', { key: 'userId', value: 'user-1', updated_at: 1 });
 
+    await render(<App initialUnlocked localStore={store} syncApi={quietApi} />);
+    await click('button[aria-label="Search"]');
+    input('input[aria-label="Search entries"]', 'Om my Om');
+
+    const results = [...container!.querySelectorAll('.search-result strong')].map((node) => node.textContent);
+    expect(results).toEqual(['Memory Is the Machine']);
+    expect(container!.textContent).not.toContain('Tech industry funding notes');
+  });
 
   it('renders compact plain-text previews in search results', async () => {
     await render(<App initialUnlocked localStore={await storeWith(entry('html-preview', {
@@ -139,7 +170,6 @@ describe('Sources, Search, and image loading', () => {
     expect(image?.getAttribute('src')).toBe('/api/image?entry_id=image-entry&src=https%3A%2F%2Ftracker.example%2Fpixel.png');
     expect(container!.querySelectorAll('img[src^="http"]')).toHaveLength(0);
   });
-
 
   it('shows source refresh feedback and refreshes local state afterward', async () => {
     let resolveRefresh: (() => void) | null = null;

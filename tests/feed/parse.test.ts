@@ -90,4 +90,19 @@ describe('parseFeed', () => {
     expect(feed.entries[0].content_html_sanitized).toContain('<p>Reader body.</p>');
   });
 
+  it('normalizes escaped uppercase RSS HTML from aggregator feeds before storage', () => {
+    const feed = parseFeed(`<?xml version="1.0"?>
+      <rss><channel><title>Techmeme</title><item>
+        <title>Filing: Beijing-based GPU maker Moore Threads reports Q1 revenue up 155% YoY to ~$107.89M, and a $4.3M net profit, up from a ~$16.46M net loss in Q1 2025 (Iris Deng/South China Morning Post)</title>
+        <guid>techmeme-1</guid>
+        <description>&lt;A HREF=&quot;https://www.scmp.com/tech/article/3351492/moore-threads-posts-us43m-profit-nvidia-rival-surges-amid-beijing-chip-push&quot;&gt;&lt;IMG VSPACE=&quot;4&quot; HSPACE=&quot;4&quot; BORDER=&quot;0&quot; ALIGN=&quot;RIGHT&quot; SRC=&quot;http://www.techmeme.com/260427/i3.jpg&quot;&gt;&lt;/A&gt; &lt;P&gt;&lt;A HREF=&quot;http://www.techmeme.com/260427/p3#a260427p3&quot; TITLE=&quot;Techmeme permalink&quot;&gt;&lt;IMG WIDTH=11 HEIGHT=12 SRC=&quot;http://www.techmeme.com/img/pml.png&quot; STYLE=&quot;border:none;padding:0;margin:0;&quot;&gt;&lt;/A&gt; Iris Deng / &lt;A HREF=&quot;http://www.scmp.com/&quot;&gt;South China Morning Post&lt;/A&gt;:&lt;BR&gt; &lt;SPAN STYLE=&quot;font-size:1.3em;&quot;&gt;&lt;B&gt;&lt;A HREF=&quot;https://www.scmp.com/tech/article/3351492/moore-threads-posts-us43m-profit-nvidia-rival-surges-amid-beijing-chip-push&quot;&gt;Filing: Beijing-based GPU maker Moore Threads reports Q1 revenue up 155% YoY to ~$107.89M, and a $4.3M net profit, up from a ~$16.46M net loss in Q1 2025&lt;/A&gt;&lt;/B&gt;&lt;/SPAN&gt;&amp;nbsp; &amp;mdash;&amp;nbsp; Beijing-based GPU maker turns a corner in the first quarter of 2026 after posting a US$16.5 million loss a year earlier&lt;/P&gt;</description>
+      </item></channel></rss>`, 'application/rss+xml', 'https://techmeme.com/feed.xml');
+
+    expect(feed.entries[0].summary_text).toBe('Iris Deng / South China Morning Post: Filing: Beijing-based GPU maker Moore Threads reports Q1 revenue up 155% YoY to ~$107.89M, and a $4.3M net profit, up from a ~$16.46M net loss in Q1 2025 — Beijing-based GPU maker turns a corner in the first quarter of 2026 after posting a US$16.5 million loss a year earlier');
+    expect(feed.entries[0].content_text).toBe(feed.entries[0].summary_text);
+    expect(feed.entries[0].summary_text).not.toContain('<A HREF');
+    expect(feed.entries[0].content_text).not.toContain('IMG');
+    expect(feed.entries[0].has_remote_images).toBe(1);
+  });
+
 });

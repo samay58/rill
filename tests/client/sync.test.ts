@@ -117,6 +117,22 @@ describe('local-first sync', () => {
     expect(cached.syncCursor).toBe(75);
   });
 
+  it('repairs cached entry summary and body text that still contain markup', async () => {
+    const store = new MemoryStore();
+    await store.put('entries', entry('raw-cached', {
+      summary_text: '<p>Dear reader, <a href="https://example.com">start here</a>.</p>',
+      content_text: '<p>Cached body with <strong>markup</strong>.</p>'
+    }));
+
+    const cached = await loadCachedState(store);
+    const stored = await store.get<Entry>('entries', 'raw-cached');
+
+    expect(cached.entries[0].summary_text).toBe('Dear reader, start here.');
+    expect(cached.entries[0].content_text).toBe('Cached body with markup.');
+    expect(stored?.summary_text).toBe('Dear reader, start here.');
+    expect(stored?.content_text).toBe('Cached body with markup.');
+  });
+
   it('bootstraps server records into the local cache without clearing pending mutations', async () => {
     const store = new MemoryStore();
     await store.put<PendingEntryMutation>('pendingMutations', { entry_id: 'entry-local', read: true, updated_at_client: 80, queued_at: 80, attempts: 0 });

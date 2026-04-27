@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { compareRankedEntries, rankSearchEntry } from '../../shared/entryText';
 import type { ReadingEntry } from './TodayView';
 import { entryExcerpt } from './entryExcerpt';
 
@@ -6,26 +7,15 @@ interface SearchViewProps {
   entries: ReadingEntry[];
   onOpenEntry: (entryId: string) => void;
 }
-
-function normalize(value: string): string {
-  return value.toLowerCase().replace(/\s+/g, ' ').trim();
-}
-
-function haystack(entry: ReadingEntry): string {
-  return normalize([entry.source_title, entry.title, entry.author, entry.summary_text, entry.content_text].filter(Boolean).join(' '));
-}
-
 export function SearchView({ entries, onOpenEntry }: SearchViewProps) {
   const [query, setQuery] = useState('');
-  const results = useMemo(() => {
-    const tokens = normalize(query).split(' ').filter(Boolean);
-    if (tokens.length === 0) return [];
-    return entries
-      .filter((entry) => entry.archived_at === null)
-      .filter((entry) => tokens.every((token) => haystack(entry).includes(token)))
-      .sort((left, right) => (right.published_at ?? right.created_at) - (left.published_at ?? left.created_at))
-      .slice(0, 50);
-  }, [entries, query]);
+  const results = useMemo(() => entries
+    .filter((entry) => entry.archived_at === null)
+    .map((entry) => ({ entry, rank: rankSearchEntry(entry, query) }))
+    .filter((result): result is { entry: ReadingEntry; rank: NonNullable<ReturnType<typeof rankSearchEntry>> } => result.rank !== null)
+    .sort(compareRankedEntries)
+    .slice(0, 50)
+    .map((result) => result.entry), [entries, query]);
 
   return (
     <section className="add-source-surface search-surface" aria-labelledby="search-heading">

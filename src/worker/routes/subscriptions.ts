@@ -23,6 +23,17 @@ async function readJsonBody(request: Request): Promise<Record<string, unknown>> 
   }
 }
 
+async function routeUser(request: Request, env: Env, clock: Clock) {
+  try {
+    return await requireUser(request, env, clock);
+  } catch (error) {
+    if (error instanceof Response) {
+      return json({ ok: false, code: 'unauthorized', message: await error.text() || 'Unauthorized' }, { status: error.status });
+    }
+    throw error;
+  }
+}
+
 function feedIdFromUrl(url: string): string {
   return `feed:${url}`;
 }
@@ -34,7 +45,6 @@ function subscriptionId(userId: string, feedId: string): string {
 function choicesResponse(choices: DiscoveredFeed[]): Response {
   return json({ ok: true, kind: 'choices', choices });
 }
-
 
 function parseSubscriptionPatch(body: Record<string, unknown>): SubscriptionPatch {
   const patch: SubscriptionPatch = {};
@@ -84,7 +94,8 @@ async function createSubscriptionFromFeed(env: Env, userId: string, url: string,
 }
 
 async function handleCreateSubscription(request: Request, env: Env, clock: Clock): Promise<Response> {
-  const user = await requireUser(request, env, clock);
+  const user = await routeUser(request, env, clock);
+  if (user instanceof Response) return user;
   const body = await readJsonBody(request);
   const inputUrl = typeof body.url === 'string' ? body.url.trim() : '';
   if (!inputUrl) return json({ ok: false, code: 'missing_url', message: 'Paste a site or feed URL.' }, { status: 400 });
@@ -129,7 +140,8 @@ async function createSubscriptionFromDiscoveredChoice(env: Env, userId: string, 
 export async function handleSubscriptionsRoute(request: Request, env: Env, clock: Clock = systemClock): Promise<Response | null> {
   const url = new URL(request.url);
   if (url.pathname === '/api/bootstrap' && request.method === 'GET') {
-    const user = await requireUser(request, env, clock);
+    const user = await routeUser(request, env, clock);
+    if (user instanceof Response) return user;
     const serverTime = clock();
     const [feeds, subscriptions, entries, entryState] = await Promise.all([
       listFeedsForUser(env.DB, user.id),
@@ -140,7 +152,8 @@ export async function handleSubscriptionsRoute(request: Request, env: Env, clock
     return json({ ok: true, user, feeds, subscriptions, entries, entryState, serverTime, syncCursor: serverTime });
   }
   if (url.pathname === '/api/sync' && request.method === 'GET') {
-    const user = await requireUser(request, env, clock);
+    const user = await routeUser(request, env, clock);
+    if (user instanceof Response) return user;
     const since = Number(url.searchParams.get('since') ?? 0);
     const cursor = Number.isFinite(since) ? since : 0;
     const serverTime = clock();
@@ -157,13 +170,15 @@ export async function handleSubscriptionsRoute(request: Request, env: Env, clock
   }
   const subscriptionMatch = url.pathname.match(/^\/api\/subscriptions\/([^/]+)$/);
   if (subscriptionMatch && request.method === 'PATCH') {
-    const user = await requireUser(request, env, clock);
+    const user = await routeUser(request, env, clock);
+    if (user instanceof Response) return user;
     const subscription = await patchSubscription(env.DB, user.id, decodeURIComponent(subscriptionMatch[1]), parseSubscriptionPatch(await readJsonBody(request)), clock());
     if (!subscription) return json({ ok: false, code: 'subscription_not_found', message: 'Source not found.' }, { status: 404 });
     return json({ ok: true, subscription });
   }
   if (subscriptionMatch && request.method === 'DELETE') {
-    const user = await requireUser(request, env, clock);
+    const user = await routeUser(request, env, clock);
+    if (user instanceof Response) return user;
     const removed = await deleteSubscription(env.DB, user.id, decodeURIComponent(subscriptionMatch[1]));
     if (!removed) return json({ ok: false, code: 'subscription_not_found', message: 'Source not found.' }, { status: 404 });
     return json({ ok: true, removed: true });

@@ -1,3 +1,4 @@
+import { plainTextFromMaybeHtml } from '../shared/entryText';
 import type { BootstrapPayload, EntryStatePatch, EntryUserState, Entry, Feed, Subscription, SyncPayload, UnixMs } from '../shared/types';
 import { systemClock, type Clock } from '../shared/time';
 import { fetchBootstrap, fetchSyncSince, patchEntryState as patchRemoteEntryState } from './api';
@@ -22,6 +23,20 @@ export interface RillSyncApi {
   patchEntryState(entryId: string, patch: EntryStatePatch): Promise<EntryUserState>;
 }
 
+function repairedEntryText(entry: Entry): Entry {
+  const summaryText = plainTextFromMaybeHtml(entry.summary_text);
+  const contentText = plainTextFromMaybeHtml(entry.content_text);
+  if (summaryText === entry.summary_text && contentText === entry.content_text) return entry;
+  return { ...entry, summary_text: summaryText, content_text: contentText };
+}
+
+async function repairCachedEntries(store: LocalStore, entries: Entry[]): Promise<Entry[]> {
+  const repaired = entries.map(repairedEntryText);
+  const changed = repaired.filter((entry, index) => entry !== entries[index]);
+  if (changed.length > 0) await store.putMany<Entry>('entries', changed);
+  return repaired;
+}
+
 export const defaultSyncApi: RillSyncApi = {
   bootstrap: fetchBootstrap,
   syncSince: fetchSyncSince,
@@ -39,7 +54,8 @@ export async function loadCachedState(store: LocalStore): Promise<CachedClientSt
     getMetaValue<string>(store, USER_ID_KEY)
   ]);
   const inferredUserId = userId ?? subscriptions[0]?.user_id ?? entryState[0]?.user_id ?? null;
-  return { feeds, subscriptions, entries, entryState, pendingMutations, syncCursor: syncCursor ?? 0, userId: inferredUserId };
+  const repairedEntries = await repairCachedEntries(store, entries);
+  return { feeds, subscriptions, entries: repairedEntries, entryState, pendingMutations, syncCursor: syncCursor ?? 0, userId: inferredUserId };
 }
 
 async function putServerEntryState(store: LocalStore, state: EntryUserState): Promise<void> {

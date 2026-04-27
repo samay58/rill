@@ -117,6 +117,73 @@ function api(overrides: Partial<RillSyncApi> = {}): RillSyncApi {
 }
 
 describe('App local-first sync wiring', () => {
+  it('uses an existing session on refresh instead of showing unlock first', async () => {
+    const store = new MemoryStore();
+    await store.put('appMeta', { key: 'syncCursor', value: 0, updated_at: 0 });
+
+    await render(<App localStore={store} syncApi={api({
+      bootstrap: async () => ({
+        user: { id: 'user-1', handle: 'samay', created_at: 1, updated_at: 1 },
+        feeds: [feed()],
+        subscriptions: [subscription()],
+        entries: [entry('session-entry', { title: 'Still unlocked after refresh' })],
+        entryState: [state('session-entry')],
+        serverTime: 100,
+        syncCursor: 100
+      })
+    })} />);
+    await flush();
+    await flush();
+
+    expect(container!.textContent).toContain('Still unlocked after refresh');
+    expect(container!.querySelector('.unlock-card')).toBeNull();
+  });
+
+  it('requires unlock when the cached session has expired', async () => {
+    const store = new MemoryStore();
+    await store.put('feeds', feed());
+    await store.put('subscriptions', subscription());
+    await store.put('entries', entry('stale-session-entry', { title: 'Private cached entry' }));
+    await store.put('entryState', state('stale-session-entry'));
+    await store.put('appMeta', { key: 'syncCursor', value: 1, updated_at: 1 });
+    await store.put('appMeta', { key: 'userId', value: 'user-1', updated_at: 1 });
+
+    const expired = Object.assign(new Error('Unauthorized'), { status: 401 });
+    await render(<App localStore={store} syncApi={api({ bootstrap: async () => { throw expired; } })} />);
+    await flush();
+    await flush();
+
+    expect(container!.querySelector('.unlock-card')).not.toBeNull();
+    expect(container!.textContent).not.toContain('Private cached entry');
+  });
+
+  it('saves from Reader with clear feedback and immediately appears in Saved', async () => {
+    const store = new MemoryStore();
+    await store.put('feeds', feed());
+    await store.put('subscriptions', subscription());
+    await store.put('entries', entry('save-me', { title: 'Save this clearly' }));
+    await store.put('entryState', state('save-me'));
+    await store.put('appMeta', { key: 'syncCursor', value: 1, updated_at: 1 });
+    await store.put('appMeta', { key: 'userId', value: 'user-1', updated_at: 1 });
+
+    await render(<App initialUnlocked localStore={store} syncApi={api({
+      syncSince: async () => ({ feeds: [], subscriptions: [], entries: [], entryState: [], serverTime: 2, syncCursor: 2 }),
+      patchEntryState: async (entryId, patch) => state(entryId, { saved_at: patch.saved ? patch.updated_at_client : null, updated_at: patch.updated_at_client })
+    })} clock={() => 5000} />);
+    await flush();
+
+    await click('[data-entry-id="save-me"] .entry-open-button');
+    expect(container!.querySelector('[data-action="save-entry"]')?.textContent).toBe('Save for later');
+    await click('[data-action="save-entry"]');
+    await flush();
+
+    expect(container!.querySelector('[data-action="save-entry"]')?.textContent).toBe('Saved');
+    expect(container!.textContent).toContain('Saved to Saved');
+
+    await click('button[aria-label="Saved"]');
+    expect(container!.textContent).toContain('Save this clearly');
+  });
+
   it('renders cached entries before server bootstrap completes', async () => {
     const store = new MemoryStore();
     await store.put('feeds', feed());

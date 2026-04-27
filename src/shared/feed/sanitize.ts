@@ -1,6 +1,7 @@
 import { parseDocument } from 'htmlparser2';
 import render from 'dom-serializer';
 import type { AnyNode, Element, Text } from 'domhandler';
+import { normalizeText, plainTextFromMaybeHtml } from '../entryText';
 
 const BLOCKED_TAGS = new Set(['script', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'textarea', 'select', 'style', 'link', 'meta']);
 const URL_ATTRS = new Set(['href', 'src']);
@@ -82,9 +83,10 @@ export function htmlToPlainText(html: string): string {
 
 export function cleanFeedText(value: string | null): string | null {
   if (!value) return null;
-  const text = /<[^>]+>/.test(value) ? htmlToPlainText(value) : value;
-  const cleaned = text.replace(/\s+/g, ' ').trim();
-  return cleaned.length > 0 ? cleaned : null;
+  const cleaned = /<[^>]+>/.test(value) && !/&lt;\/?[a-z][\s\S]*?&gt;/i.test(value)
+    ? normalizeText(htmlToPlainText(value))
+    : plainTextFromMaybeHtml(value);
+  return cleaned && cleaned.length > 0 ? cleaned : null;
 }
 
 export function extractRemoteImages(html: string): string[] {

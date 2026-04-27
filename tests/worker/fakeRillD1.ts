@@ -97,12 +97,12 @@ class FakeStatement {
     }
     if (sqlIncludes(this.sql, 'FROM entries e')) {
       const limit = Number(this.args[this.args.length - 1]);
-      const query = typeof this.args[1] === 'string' && this.args[1].startsWith('%') ? this.args[1].slice(1, -1).toLowerCase() : null;
+      const unreadOnly = sqlIncludes(this.sql, 's.read_at IS NULL');
       const rows = this.db.entries
         .filter((entry) => this.activeEntry(entry))
         .map((entry) => this.entryWithState(entry))
         .filter((entry) => entry.archived_at === null)
-        .filter((entry) => query ? [entry.source_title, entry.title, entry.author, entry.summary_text, entry.content_text].filter(Boolean).join(' ').toLowerCase().includes(query) : entry.read_at === null)
+        .filter((entry) => !unreadOnly || entry.read_at === null)
         .sort((left, right) => (right.published_at ?? right.created_at) - (left.published_at ?? left.created_at))
         .slice(0, limit);
       return { results: rows as T[], success: true, meta: {} };

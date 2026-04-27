@@ -64,7 +64,7 @@ export function ReaderView({ entry, onBack, onSave, onArchive, onMarkUnread }: R
       <header className="reader-topbar">
         <button type="button" className="reader-back" data-action="back-to-today" onClick={onBack}>{'< Today'}</button>
         <div className="reader-toolbar" aria-label="Entry actions">
-          <button type="button" className="reader-save" data-action="save-entry" onClick={() => onSave(entry.id)}>{entry.saved_at ? 'Saved' : 'Save'}</button>
+          <button type="button" className="reader-save" data-action="save-entry" onClick={() => onSave(entry.id)}>{entry.saved_at ? 'Saved' : 'Save for later'}</button>
           <button type="button" data-action="archive-entry" onClick={() => onArchive(entry.id)}>Archive</button>
           <button type="button" data-action="mark-unread" onClick={() => onMarkUnread(entry.id)}>Mark unread</button>
           <span aria-hidden="true" />
@@ -74,6 +74,7 @@ export function ReaderView({ entry, onBack, onSave, onArchive, onMarkUnread }: R
       <article className="reader-article">
         <p className="reader-byline">{byline}</p>
         <h1 id="reader-title">{entry.title ?? 'Untitled'}</h1>
+        {entry.saved_at ? <p className="reader-state-note">Saved to Saved</p> : null}
         {hiddenImages > 0 && !imagesLoaded ? (
           <div className="hidden-images-banner">
             <span aria-hidden="true">▧</span>

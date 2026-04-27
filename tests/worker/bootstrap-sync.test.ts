@@ -55,6 +55,14 @@ function state(entryId: string, overrides: Partial<EntryUserState> = {}): EntryU
 }
 
 describe('bootstrap and sync routes', () => {
+  it('returns a JSON auth failure when bootstrap has no valid session', async () => {
+    const response = await handleSubscriptionsRoute(new Request('https://rill.local/api/bootstrap'), envFor(new FakeRillD1()), () => 1000);
+    const payload = await response!.json() as { ok: false; code: string; message: string };
+
+    expect(response?.status).toBe(401);
+    expect(payload).toEqual({ ok: false, code: 'unauthorized', message: 'Unauthorized' });
+  });
+
   it('returns real subscribed feeds, entries, and state on bootstrap', async () => {
     const db = new FakeRillD1();
     db.feeds.push(feed({ title: 'Notebook Letters', updated_at: 10 }));

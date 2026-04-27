@@ -1,3 +1,4 @@
+import { compareRankedEntries, rankSearchEntry } from '../shared/entryText';
 import type {
   Entry,
   EntryStatePatch,
@@ -289,7 +290,7 @@ export async function getEntryForUser(db: D1Database, userId: string, entryId: s
 }
 
 export async function searchEntries(db: D1Database, userId: string, query: string, limit = 25): Promise<EntryWithState[]> {
-  const needle = `%${query.toLowerCase()}%`;
+  const candidateLimit = Math.max(100, Math.min(500, limit * 20));
   const result = await db.prepare(`
     SELECT e.*, f.title AS source_title, s.read_at, s.saved_at, s.archived_at, s.last_opened_at
     FROM entries e
@@ -297,14 +298,15 @@ export async function searchEntries(db: D1Database, userId: string, query: strin
     JOIN subscriptions sub ON sub.feed_id = e.feed_id AND sub.user_id = ? AND sub.is_archived = 0
     LEFT JOIN entry_user_state s ON s.entry_id = e.id AND s.user_id = sub.user_id
     WHERE s.archived_at IS NULL
-      AND LOWER(
-        COALESCE(f.title, '') || ' ' || COALESCE(e.title, '') || ' ' ||
-        COALESCE(e.author, '') || ' ' || COALESCE(e.summary_text, '') || ' ' || COALESCE(e.content_text, '')
-      ) LIKE ?
     ORDER BY COALESCE(e.published_at, e.created_at) DESC
     LIMIT ?
-  `).bind(userId, needle, limit).all<EntryWithState>();
-  return result.results;
+  `).bind(userId, candidateLimit).all<EntryWithState>();
+  return result.results
+    .map((entry) => ({ entry, rank: rankSearchEntry(entry, query) }))
+    .filter((result): result is { entry: EntryWithState; rank: NonNullable<ReturnType<typeof rankSearchEntry>> } => result.rank !== null)
+    .sort(compareRankedEntries)
+    .slice(0, limit)
+    .map((result) => result.entry);
 }
 
 export async function patchEntryState(db: D1Database, userId: string, entryId: string, patch: EntryStatePatch, now: UnixMs): Promise<EntryUserState> {

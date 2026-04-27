@@ -121,4 +121,20 @@ describe('entries routes', () => {
     const payload = await search!.json() as { ok: true; entries: Array<{ id: string }> };
     expect(payload.entries.map((result) => result.id)).toEqual(['entry-1']);
   });
+
+  it('searches source and title terms by token relevance instead of raw substring noise', async () => {
+    const db = new FakeRillD1();
+    db.feeds.push(feed({ id: 'om-feed', title: 'On my Om', canonical_feed_url: 'https://om.co/feed.xml' }));
+    db.feeds.push(feed({ id: 'tech-feed', title: 'Techmeme', canonical_feed_url: 'https://techmeme.com/feed.xml' }));
+    db.subscriptions.push(subscription({ id: 'om-sub', feed_id: 'om-feed' }));
+    db.subscriptions.push(subscription({ id: 'tech-sub', feed_id: 'tech-feed' }));
+    db.entries.push(entry({ id: 'om-entry', feed_id: 'om-feed', stable_external_id: 'om-entry', title: 'Memory Is the Machine', summary_text: 'A sharp On my Om dispatch.', published_at: 100 }));
+    db.entries.push(entry({ id: 'tech-entry', feed_id: 'tech-feed', stable_external_id: 'tech-entry', title: 'Tech industry funding notes', summary_text: '<A HREF="https://techmeme.com/story">company coverage</A> my archive', content_text: 'company coverage my archive', published_at: 200 }));
+
+    const search = await handleEntriesRoute(await authed('/api/search?q=Om%20my%20Om'), envFor(db), () => 1000);
+    const payload = await search!.json() as { ok: true; entries: Array<{ id: string }> };
+
+    expect(payload.entries.map((result) => result.id)).toEqual(['om-entry']);
+  });
+
 });

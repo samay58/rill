@@ -55,6 +55,21 @@ describe('entryExcerpt', () => {
     expect(entryExcerpt(entry({ summary_text: '<p></p>' }))).toBeNull();
   });
 
+  it('turns Techmeme-style HTML blurbs into a short human preview', () => {
+    const title = 'Filing: Beijing-based GPU maker Moore Threads reports Q1 revenue up 155% YoY to ~$107.89M, and a $4.3M net profit, up from a ~$16.46M net loss in Q1 2025 (Iris Deng/South China Morning Post)';
+    const excerpt = entryExcerpt(entry({
+      title,
+      source_title: 'Techmeme',
+      summary_text: '<A HREF="https://www.scmp.com/tech/article/3351492/moore-threads-posts-us43m-profit-nvidia-rival-surges-amid-beijing-chip-push"><IMG VSPACE="4" HSPACE="4" BORDER="0" ALIGN="RIGHT" SRC="http://www.techmeme.com/260427/i3.jpg"></A> <P><A HREF="http://www.techmeme.com/260427/p3#a260427p3" TITLE="Techmeme permalink"><IMG WIDTH=11 HEIGHT=12 SRC="http://www.techmeme.com/img/pml.png" STYLE="border:none;padding:0;margin:0;"></A> Iris Deng / <A HREF="http://www.scmp.com/">South China Morning Post</A>:<BR> <SPAN STYLE="font-size:1.3em;"><B><A HREF="https://www.scmp.com/tech/article/3351492/moore-threads-posts-us43m-profit-nvidia-rival-surges-amid-beijing-chip-push">Filing: Beijing-based GPU maker Moore Threads reports Q1 revenue up 155% YoY to ~$107.89M, and a $4.3M net profit, up from a ~$16.46M net loss in Q1 2025</A></B></SPAN>&nbsp; &mdash;&nbsp; Beijing-based GPU maker turns a corner in the first quarter of 2026 after posting a US$16.5 million loss a year earlier</P>'
+    }));
+
+    expect(excerpt).toBe('Beijing-based GPU maker turns a corner in the first quarter of 2026 after posting a US$16.5 million loss a year earlier');
+    expect(excerpt).not.toContain('<A HREF');
+    expect(excerpt).not.toContain('IMG');
+    expect(excerpt).not.toContain('http');
+    expect(excerpt).not.toContain(title.slice(0, 40));
+  });
+
   it('falls back to content text when a summary is missing', () => {
     expect(entryExcerpt(entry({ content_text: 'A useful body fallback.' }))).toBe('A useful body fallback.');
   });
