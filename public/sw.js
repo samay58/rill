@@ -1,8 +1,9 @@
-const CACHE_NAME = 'rill-app-shell-v3';
+const CACHE_NAME = 'rill-app-shell-v4';
 const CORE_URLS = [
   '/manifest.webmanifest',
   '/favicon.ico',
   '/icons/rill-icon-32.png',
+  '/icons/rill-icon-48.png',
   '/icons/rill-icon-180.png',
   '/icons/rill-icon-192.png',
   '/icons/rill-icon-512.png',

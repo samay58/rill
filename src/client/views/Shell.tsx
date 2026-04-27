@@ -85,7 +85,10 @@ export function Shell({ activeView, unreadCount, onNavigate, children }: ShellPr
   return (
     <div className="notebook-shell">
       <aside className="sidebar" aria-label="Rill navigation">
-        <div className="wordmark">rill</div>
+        <div className="sidebar-brand">
+          <img className="sidebar-brand-icon" src="/icons/rill-icon-48.png" alt="" aria-hidden="true" />
+          <div className="wordmark">rill</div>
+        </div>
         <nav className="side-nav">
           {navItems.map((item) => (
             <NavButton key={item.view} item={item} active={active === item.view} unreadCount={unreadCount} onNavigate={onNavigate} />

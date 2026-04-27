@@ -100,8 +100,26 @@ svg {
   color: var(--color-text-primary);
 }
 
+.sidebar-brand {
+  min-height: 34px;
+  margin: 0 12px 78px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar-brand-icon {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 6px;
+  object-fit: cover;
+  outline: 1px solid rgba(37, 35, 24, 0.08);
+  outline-offset: -1px;
+}
+
 .wordmark {
-  margin: 0 12px 82px;
+  transform: translateY(-1px);
 }
 
 .side-nav {
