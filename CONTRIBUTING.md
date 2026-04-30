@@ -32,4 +32,4 @@ Recent history uses short Conventional Commit-style subjects, for example `feat:
 
 ## Security & Configuration Tips
 
-Keep `.dev.vars`, unlock tokens, session secrets, and D1 seed values out of git. Preserve the privacy stance in `README.md` and the design spec: same-origin CSP, sanitized feed HTML only, hidden remote images by default, and image loading only through `/api/image?entry_id=&src=`.
+Keep `.dev.vars`, unlock tokens, session secrets, and D1 seed values out of git. Preserve the privacy stance in `README.md` and the design spec: same-origin CSP, sanitized feed HTML only, hidden remote images by default, and image loading only through `/api/image?entry_id=&src=`. Article extraction may use the server-side Jina Reader fallback unless `ARTICLE_RESOLVER_FALLBACK=off`; do not add browser-side third-party scripts or trackers.

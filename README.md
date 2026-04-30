@@ -32,7 +32,9 @@ Rill is a Progressive Web App backed by a Cloudflare Worker. Reading state lives
 - **Vitest + Playwright** — automated tests, including a network check that fails if any third-party scripts load.
 - **Hand-rolled UI** — system fonts, Georgia for the reader, nothing imported that phones home.
 
-Privacy is enforced structurally, not just by convention. A lint pass scans the compiled output at build time. Remote images are hidden by default and load only through a server-side proxy. The CSP is same-origin. Rill should be invisible from a network traffic perspective.
+Privacy is enforced structurally, not just by convention. A lint pass scans the compiled output at build time. Remote images are hidden by default and load only through a server-side proxy. The CSP is same-origin. Rill should be invisible from a browser network traffic perspective.
+
+When a feed only stores a teaser, Reader first refreshes the source feed, then tries local public-page extraction, then falls back to Jina Reader's server-side URL-to-Markdown resolver. Set `ARTICLE_RESOLVER_FALLBACK=off` in `.dev.vars` or Worker secrets to disable that final third-party resolver.
 
 ## Getting started
 
@@ -73,7 +75,7 @@ The non-goals are part of the design:
 - No recommendations, ranking, clustering, or smart resurfacing.
 - No push notifications.
 - No watched keywords.
-- No full-text extraction from article pages.
+- No paywall or access-control bypass.
 - No social features.
 - No usage analytics.
 - No external fonts or third-party scripts.

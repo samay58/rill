@@ -139,6 +139,50 @@ describe('entries routes', () => {
     expect(fetcher).toHaveBeenCalledOnce();
   });
 
+  it('uses the external Reader fallback when feed refresh and local extraction do not resolve content', async () => {
+    const db = seededDb();
+    db.entries[0].stable_external_id = 'reader-fallback';
+    db.entries[0].summary_text = 'Short teaser only.';
+    db.entries[0].content_text = 'Short teaser only.';
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const target = String(input);
+      if (target === 'https://example.com/feed.xml') {
+        return new Response(`<?xml version="1.0"?>
+          <rss><channel><title>Fallback RSS</title><item>
+            <title>Quiet defaults</title>
+            <guid>reader-fallback</guid>
+            <link>https://example.com/entry-1</link>
+            <description><![CDATA[<p>Short teaser only.</p>]]></description>
+          </item></channel></rss>`, { headers: { 'content-type': 'application/rss+xml' } });
+      }
+      if (target === 'https://example.com/entry-1') {
+        return new Response('blocked', { status: 403 });
+      }
+      if (target === 'https://r.jina.ai/') {
+        return new Response(JSON.stringify({
+          title: 'Quiet defaults',
+          content: `${'Full article from Reader fallback. '.repeat(40)}`
+        }), { headers: { 'content-type': 'application/json' } });
+      }
+      return new Response('unexpected', { status: 500 });
+    });
+    vi.stubGlobal('fetch', fetcher);
+
+    const response = await handleEntriesRoute(await authed('/api/entries/entry-1/extract', {
+      method: 'POST'
+    }), envFor(db), () => 5000);
+    const payload = await response!.json() as { ok: true; entry: Entry };
+
+    expect(response?.status).toBe(200);
+    expect(payload.entry.content_text).toContain('Full article from Reader fallback.');
+    expect(payload.entry.content_html_sanitized).toContain('<p>Full article from Reader fallback.');
+    expect(fetcher.mock.calls.map(([input]) => String(input))).toEqual([
+      'https://example.com/feed.xml',
+      'https://example.com/entry-1',
+      'https://r.jina.ai/'
+    ]);
+  });
+
   it('rejects extraction when the entry has no original article URL', async () => {
     const db = seededDb();
     db.entries[0].canonical_url = null;

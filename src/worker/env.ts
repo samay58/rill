@@ -4,4 +4,5 @@ export interface Env {
   REFRESH_QUEUE: Queue;
   RILL_TOKEN_HASH?: string;
   SESSION_SECRET?: string;
+  ARTICLE_RESOLVER_FALLBACK?: string;
 }

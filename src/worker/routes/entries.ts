@@ -7,6 +7,7 @@ import { requireUser } from '../auth';
 import { getEntryForUser, listTodayEntries, patchEntryState, searchEntries, updateEntryExtractedContent } from '../db';
 import type { Env } from '../env';
 import { fetchAndStoreFeed } from '../feedFetch';
+import { extractWithJinaReader } from '../jinaReader';
 
 const FULL_ARTICLE_TEXT_LENGTH = 800;
 
@@ -61,6 +62,14 @@ async function refreshEntryFromFeed(env: Env, userId: string, entry: EntryWithSt
   return hasFullReaderContent(refreshed) && readerTextLength(refreshed) > readerTextLength(entry) ? refreshed : null;
 }
 
+function readerFallbackEnabled(env: Env): boolean {
+  return (env.ARTICLE_RESOLVER_FALLBACK ?? 'jina').toLowerCase() !== 'off';
+}
+
+async function extractWithFallback(env: Env, url: string) {
+  return readerFallbackEnabled(env) ? extractWithJinaReader(url) : null;
+}
+
 function parsePatch(body: Record<string, unknown>, clock: Clock): EntryStatePatch {
   const patch: EntryStatePatch = { updated_at_client: typeof body.updated_at_client === 'number' ? body.updated_at_client : clock() };
   if (typeof body.read === 'boolean') patch.read = body.read;
@@ -111,6 +120,12 @@ export async function handleEntriesRoute(request: Request, env: Env, clock: Cloc
       if (!updated) return json({ ok: false, code: 'entry_not_found', message: 'Entry not found.' }, { status: 404 });
       return json({ ok: true, entry: updated });
     } catch (error) {
+      const fallbackContent = await extractWithFallback(env, entry.canonical_url).catch(() => null);
+      if (fallbackContent) {
+        const updated = await updateEntryExtractedContent(env.DB, user.id, entryId, fallbackContent, clock());
+        if (!updated) return json({ ok: false, code: 'entry_not_found', message: 'Entry not found.' }, { status: 404 });
+        return json({ ok: true, entry: updated });
+      }
       if (error instanceof ArticleExtractionError) {
         return json({ ok: false, code: error.code, message: error.message }, { status: error.status });
       }
