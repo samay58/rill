@@ -1,3 +1,4 @@
+import { entryContentHash } from '../shared/contentHash';
 import { parseFeed } from '../shared/feed/parse';
 import type { FetchRunStatus } from '../shared/types';
 import type { Clock } from '../shared/time';
@@ -20,16 +21,6 @@ export function entryId(feedId: string, stableExternalId: string): string {
   return `entry:${feedId}:${stableExternalId}`;
 }
 
-function textHash(value: string): string {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(36);
-}
-
-
 export async function storeParsedFeedEntries(env: Env, feedId: string, parsed: ReturnType<typeof parseFeed>, fetchedAt: number): Promise<number> {
   for (const entry of parsed.entries) {
     await upsertEntry(env.DB, {
@@ -46,7 +37,7 @@ export async function storeParsedFeedEntries(env: Env, feedId: string, parsed: R
       content_html_sanitized: entry.content_html_sanitized,
       content_html_raw: entry.content_html_raw,
       has_remote_images: entry.has_remote_images,
-      content_hash: textHash(`${entry.title ?? ''}|${entry.content_text ?? ''}|${entry.content_html_sanitized ?? ''}`),
+      content_hash: entryContentHash(entry),
       created_at: fetchedAt,
       updated_at: fetchedAt
     });

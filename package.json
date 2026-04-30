@@ -16,10 +16,12 @@
     "setup:local": "node scripts/setup-local.mjs"
   },
   "dependencies": {
+    "@mozilla/readability": "^0.6.0",
     "dompurify": "latest",
     "fast-xml-parser": "latest",
     "htmlparser2": "latest",
     "idb": "latest",
+    "linkedom": "^0.18.12",
     "react": "latest",
     "react-dom": "latest"
   },
