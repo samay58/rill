@@ -37,38 +37,88 @@ export interface ExtractPublicArticleOptions {
 }
 
 function isBlockedIpv4(hostname: string): boolean {
+  const value = ipv4ToNumber(hostname);
+  if (value === null) return false;
+
+  return IPV4_BLOCKED_RANGES.some(([start, end]) => value >= start && value <= end);
+}
+
+function ipv4ToNumber(hostname: string): number | null {
   const parts = hostname.split('.');
-  if (parts.length !== 4) return false;
+  if (parts.length !== 4) return null;
   const octets = parts.map((part) => Number(part));
   if (octets.some((octet, index) => !Number.isInteger(octet) || octet < 0 || octet > 255 || String(octet) !== parts[index])) {
-    return false;
+    return null;
   }
 
-  const [first, second] = octets;
-  return first === 0
-    || first === 10
-    || first === 127
-    || (first === 169 && second === 254)
-    || (first === 172 && second >= 16 && second <= 31)
-    || (first === 192 && second === 168)
-    || (first === 100 && second >= 64 && second <= 127)
-    || (first === 198 && (second === 18 || second === 19))
-    || first >= 224;
+  return ((octets[0] * 256 + octets[1]) * 256 + octets[2]) * 256 + octets[3];
 }
+
+const IPV4_BLOCKED_RANGES: Array<[number, number]> = [
+  ['0.0.0.0', '0.255.255.255'],
+  ['10.0.0.0', '10.255.255.255'],
+  ['100.64.0.0', '100.127.255.255'],
+  ['127.0.0.0', '127.255.255.255'],
+  ['169.254.0.0', '169.254.255.255'],
+  ['172.16.0.0', '172.31.255.255'],
+  ['192.0.0.0', '192.0.0.255'],
+  ['192.0.2.0', '192.0.2.255'],
+  ['192.88.99.0', '192.88.99.255'],
+  ['192.168.0.0', '192.168.255.255'],
+  ['198.18.0.0', '198.19.255.255'],
+  ['198.51.100.0', '198.51.100.255'],
+  ['203.0.113.0', '203.0.113.255'],
+  ['224.0.0.0', '239.255.255.255'],
+  ['240.0.0.0', '255.255.255.255']
+].map(([start, end]) => [ipv4ToNumber(start) ?? 0, ipv4ToNumber(end) ?? 0]);
 
 function isBlockedIpv6(hostname: string): boolean {
   const normalized = hostname.replace(/^\[/, '').replace(/\]$/, '').toLowerCase();
   const mappedIpv4 = ipv4FromMappedIpv6(normalized);
   if (mappedIpv4 && isBlockedIpv4(mappedIpv4)) return true;
 
-  if (normalized === '::' || normalized === '::1') return true;
+  const hextets = expandIpv6(normalized);
+  if (!hextets) return false;
+  const [firstHextet, secondHextet, thirdHextet, fourthHextet] = hextets;
+  const isUnspecified = hextets.every((hextet) => hextet === 0);
+  const isLoopback = hextets.slice(0, 7).every((hextet) => hextet === 0) && hextets[7] === 1;
 
-  const firstHextet = Number.parseInt(normalized.split(':')[0] || '0', 16);
-  if (!Number.isInteger(firstHextet)) return false;
-
-  return (firstHextet & 0xfe00) === 0xfc00
+  return isUnspecified
+    || isLoopback
+    || (firstHextet === 0x0100 && secondHextet === 0 && thirdHextet === 0 && fourthHextet === 0)
+    || (firstHextet === 0x2001 && secondHextet <= 0x01ff)
+    || (firstHextet === 0x2001 && secondHextet === 0x0db8)
+    || firstHextet === 0x2002
+    || (firstHextet === 0x3fff && secondHextet <= 0x0fff)
+    || firstHextet === 0x5f00
+    || (firstHextet & 0xfe00) === 0xfc00
     || (firstHextet & 0xffc0) === 0xfe80
     || (firstHextet & 0xff00) === 0xff00;
+}
+
+function expandIpv6(hostname: string): number[] | null {
+  if (hostname.includes('.')) return null;
+  const [leftText, rightText, extra] = hostname.split('::');
+  if (extra !== undefined) return null;
+
+  const left = leftText ? parseHextets(leftText) : [];
+  const right = rightText ? parseHextets(rightText) : [];
+  if (!left || !right) return null;
+
+  if (rightText === undefined) return left.length === 8 ? left : null;
+
+  const zeros = 8 - left.length - right.length;
+  if (zeros < 0) return null;
+  return [...left, ...Array(zeros).fill(0), ...right];
+}
+
+function parseHextets(value: string): number[] | null {
+  const parts = value.split(':');
+  const hextets = parts.map((part) => Number.parseInt(part, 16));
+  if (parts.some((part, index) => part.length === 0 || part.length > 4 || !/^[0-9a-f]+$/i.test(part) || hextets[index] < 0 || hextets[index] > 0xffff)) {
+    return null;
+  }
+  return hextets;
 }
 
 function ipv4FromMappedIpv6(hostname: string): string | null {
