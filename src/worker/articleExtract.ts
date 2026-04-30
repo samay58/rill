@@ -5,6 +5,7 @@ import { extractRemoteImages, htmlToPlainText, sanitizeFeedHtml } from '../share
 const DEFAULT_TIMEOUT_MS = 8_000;
 const DEFAULT_MAX_BYTES = 1_000_000;
 const MIN_READABLE_TEXT_LENGTH = 120;
+const MAX_REDIRECTS = 5;
 
 type ArticleExtractionErrorCode = 'article_fetch_failed' | 'article_not_readable' | 'article_url_not_public' | 'invalid_article_url';
 
@@ -44,11 +45,15 @@ function isBlockedIpv4(hostname: string): boolean {
   }
 
   const [first, second] = octets;
-  return first === 10
+  return first === 0
+    || first === 10
     || first === 127
     || (first === 169 && second === 254)
     || (first === 172 && second >= 16 && second <= 31)
-    || (first === 192 && second === 168);
+    || (first === 192 && second === 168)
+    || (first === 100 && second >= 64 && second <= 127)
+    || (first === 198 && (second === 18 || second === 19))
+    || first >= 224;
 }
 
 function isBlockedIpv6(hostname: string): boolean {
@@ -56,13 +61,14 @@ function isBlockedIpv6(hostname: string): boolean {
   const mappedIpv4 = ipv4FromMappedIpv6(normalized);
   if (mappedIpv4 && isBlockedIpv4(mappedIpv4)) return true;
 
-  return normalized === '::1'
-    || normalized.startsWith('fe80:')
-    || normalized.startsWith('fe90:')
-    || normalized.startsWith('fea0:')
-    || normalized.startsWith('feb0:')
-    || normalized.startsWith('fc')
-    || normalized.startsWith('fd');
+  if (normalized === '::' || normalized === '::1') return true;
+
+  const firstHextet = Number.parseInt(normalized.split(':')[0] || '0', 16);
+  if (!Number.isInteger(firstHextet)) return false;
+
+  return (firstHextet & 0xfe00) === 0xfc00
+    || (firstHextet & 0xffc0) === 0xfe80
+    || (firstHextet & 0xff00) === 0xff00;
 }
 
 function ipv4FromMappedIpv6(hostname: string): string | null {
@@ -142,6 +148,71 @@ function extractContentTitle(contentHtml: string): string | null {
   return document.querySelector('h1')?.textContent?.trim() || null;
 }
 
+function fetchInit(controller: AbortController): RequestInit {
+  return {
+    credentials: 'omit',
+    headers: new Headers({
+      accept: 'text/html,application/xhtml+xml',
+      'user-agent': 'Rill article extraction'
+    }),
+    redirect: 'manual',
+    signal: controller.signal
+  };
+}
+
+function invalidArticleUrl(message: string): ArticleExtractionError {
+  return new ArticleExtractionError('invalid_article_url', message);
+}
+
+function isRedirectResponse(response: Response): boolean {
+  return response.status >= 300 && response.status < 400 && response.status !== 304;
+}
+
+async function fetchWithValidatedRedirects(
+  startUrl: string,
+  fetcher: ArticleFetcher,
+  controller: AbortController
+): Promise<Response> {
+  let currentUrl = startUrl;
+
+  for (let redirectCount = 0; ; redirectCount += 1) {
+    let response: Response;
+    try {
+      response = await fetcher(currentUrl, fetchInit(controller));
+    } catch {
+      throw new ArticleExtractionError('article_fetch_failed', 'Article could not be fetched.');
+    }
+
+    if (!isRedirectResponse(response)) {
+      if (response.url && !isPublicHttpUrl(response.url)) {
+        throw invalidArticleUrl('Article redirected to a private URL.');
+      }
+      return response;
+    }
+
+    if (redirectCount >= MAX_REDIRECTS) {
+      throw invalidArticleUrl('Article redirected too many times.');
+    }
+
+    const location = response.headers.get('location');
+    if (!location) {
+      throw new ArticleExtractionError('article_fetch_failed', 'Article redirect was incomplete.');
+    }
+
+    let nextUrl: string;
+    try {
+      nextUrl = new URL(location, currentUrl).toString();
+    } catch {
+      throw invalidArticleUrl('Article redirected to an invalid URL.');
+    }
+
+    if (!isPublicHttpUrl(nextUrl)) {
+      throw invalidArticleUrl('Article redirected to a private URL.');
+    }
+    currentUrl = nextUrl;
+  }
+}
+
 export async function extractPublicArticle(url: string, options: ExtractPublicArticleOptions = {}): Promise<ExtractedArticle> {
   if (!isPublicHttpUrl(url)) {
     throw new ArticleExtractionError('article_url_not_public', 'Article URL must be public HTTP or HTTPS.');
@@ -155,26 +226,15 @@ export async function extractPublicArticle(url: string, options: ExtractPublicAr
 
   let response: Response;
   try {
-    response = await fetcher(url, {
-      credentials: 'omit',
-      headers: new Headers({
-        accept: 'text/html,application/xhtml+xml',
-        'user-agent': 'Rill article extraction'
-      }),
-      redirect: 'follow',
-      signal: controller.signal
-    });
-  } catch {
+    response = await fetchWithValidatedRedirects(url, fetcher, controller);
+  } catch (error) {
     clearTimeout(timeout);
-    throw new ArticleExtractionError('article_fetch_failed', 'Article could not be fetched.');
+    throw error;
   }
 
   try {
     if (!response.ok) {
       throw new ArticleExtractionError('article_fetch_failed', 'Article could not be fetched.');
-    }
-    if (response.url && !isPublicHttpUrl(response.url)) {
-      throw new ArticleExtractionError('invalid_article_url', 'Article redirected to a private URL.');
     }
 
     const html = await readLimitedText(response, maxBytes);
