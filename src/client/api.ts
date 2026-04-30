@@ -1,4 +1,4 @@
-import type { BootstrapPayload, EntryStatePatch, EntryUserState, Subscription, SyncPayload, UnixMs } from '../shared/types';
+import type { BootstrapPayload, EntryStatePatch, EntryUserState, EntryWithState, Subscription, SyncPayload, UnixMs } from '../shared/types';
 
 export interface UnlockResult {
   ok: true;
@@ -110,6 +110,17 @@ export async function patchEntryState(entryId: string, patch: EntryStatePatch): 
   return 'state' in payload ? payload.state : payload.data;
 }
 
+export async function extractEntryContent(entryId: string): Promise<EntryWithState> {
+  const response = await fetch(`/api/entries/${encodeURIComponent(entryId)}/extract`, {
+    method: 'POST',
+    credentials: 'same-origin'
+  });
+  const payload = await parseJson<{ ok: true; entry: EntryWithState } | ApiFailure>(response);
+  if (!response.ok || !payload.ok) {
+    throw apiError(response, payload as ApiFailure, 'Could not load the full article.');
+  }
+  return payload.entry;
+}
 
 export async function patchSubscription(subscriptionId: string, patch: { folder?: string | null; sort_order?: number; is_archived?: 0 | 1 }): Promise<Subscription> {
   const response = await fetch(`/api/subscriptions/${encodeURIComponent(subscriptionId)}`, {
