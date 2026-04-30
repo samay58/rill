@@ -32,8 +32,23 @@ describe('article extraction', () => {
     expect(isPublicHttpUrl('http://127.0.0.1/post')).toBe(false);
     expect(isPublicHttpUrl('http://10.0.0.4/post')).toBe(false);
     expect(isPublicHttpUrl('http://192.168.1.2/post')).toBe(false);
+    expect(isPublicHttpUrl('http://[::ffff:127.0.0.1]/post')).toBe(false);
+    expect(isPublicHttpUrl('http://[::ffff:7f00:1]/post')).toBe(false);
+    expect(isPublicHttpUrl('http://[::ffff:10.0.0.4]/post')).toBe(false);
+    expect(isPublicHttpUrl('http://[::ffff:c0a8:102]/post')).toBe(false);
     expect(isPublicHttpUrl('file:///tmp/post')).toBe(false);
     expect(isPublicHttpUrl('not a url')).toBe(false);
+  });
+
+  it('rejects redirects to private urls after fetch', async () => {
+    const response = new Response(fixture('readable-article.html'), {
+      headers: { 'content-type': 'text/html; charset=utf-8' }
+    });
+    Object.defineProperty(response, 'url', { value: 'http://127.0.0.1/robots' });
+    const fetcher = vi.fn(async () => response);
+
+    await expect(extractPublicArticle('https://example.com/robots', { fetcher, timeoutMs: 1000, maxBytes: 200_000 }))
+      .rejects.toMatchObject({ code: 'invalid_article_url' });
   });
 
   it('reports upstream fetch failures without extracted content', async () => {

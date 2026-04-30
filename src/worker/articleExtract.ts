@@ -6,7 +6,7 @@ const DEFAULT_TIMEOUT_MS = 8_000;
 const DEFAULT_MAX_BYTES = 1_000_000;
 const MIN_READABLE_TEXT_LENGTH = 120;
 
-type ArticleExtractionErrorCode = 'article_fetch_failed' | 'article_not_readable' | 'article_url_not_public';
+type ArticleExtractionErrorCode = 'article_fetch_failed' | 'article_not_readable' | 'article_url_not_public' | 'invalid_article_url';
 
 type ArticleFetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -53,6 +53,9 @@ function isBlockedIpv4(hostname: string): boolean {
 
 function isBlockedIpv6(hostname: string): boolean {
   const normalized = hostname.replace(/^\[/, '').replace(/\]$/, '').toLowerCase();
+  const mappedIpv4 = ipv4FromMappedIpv6(normalized);
+  if (mappedIpv4 && isBlockedIpv4(mappedIpv4)) return true;
+
   return normalized === '::1'
     || normalized.startsWith('fe80:')
     || normalized.startsWith('fe90:')
@@ -60,6 +63,21 @@ function isBlockedIpv6(hostname: string): boolean {
     || normalized.startsWith('feb0:')
     || normalized.startsWith('fc')
     || normalized.startsWith('fd');
+}
+
+function ipv4FromMappedIpv6(hostname: string): string | null {
+  if (!hostname.startsWith('::ffff:')) return null;
+
+  const parts = hostname.slice('::ffff:'.length).split(':');
+  if (parts.length !== 2) return null;
+
+  const high = Number.parseInt(parts[0], 16);
+  const low = Number.parseInt(parts[1], 16);
+  if (!Number.isInteger(high) || !Number.isInteger(low) || high < 0 || high > 0xffff || low < 0 || low > 0xffff) {
+    return null;
+  }
+
+  return `${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`;
 }
 
 export function isPublicHttpUrl(value: string | null): boolean {
@@ -154,6 +172,9 @@ export async function extractPublicArticle(url: string, options: ExtractPublicAr
   try {
     if (!response.ok) {
       throw new ArticleExtractionError('article_fetch_failed', 'Article could not be fetched.');
+    }
+    if (response.url && !isPublicHttpUrl(response.url)) {
+      throw new ArticleExtractionError('invalid_article_url', 'Article redirected to a private URL.');
     }
 
     const html = await readLimitedText(response, maxBytes);
