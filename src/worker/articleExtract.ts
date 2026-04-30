@@ -203,7 +203,8 @@ function fetchInit(controller: AbortController): RequestInit {
     credentials: 'omit',
     headers: new Headers({
       accept: 'text/html,application/xhtml+xml',
-      'user-agent': 'Rill article extraction'
+      'accept-language': 'en-US,en;q=0.9',
+      'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
     }),
     redirect: 'manual',
     signal: controller.signal

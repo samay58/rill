@@ -55,6 +55,29 @@ describe('parseFeed', () => {
     expect(feed.entries[0].summary_text).not.toContain('href=');
   });
 
+  it('prefers RSS content:encoded as the Reader body while keeping description as preview', () => {
+    const feed = parseFeed(`<?xml version="1.0"?>
+      <rss xmlns:content="http://purl.org/rss/1.0/modules/content/">
+        <channel><title>Full RSS</title><item>
+          <title>Full feed body</title>
+          <guid>full-feed-body</guid>
+          <description><![CDATA[<p>Short teaser only.</p>]]></description>
+          <content:encoded><![CDATA[
+            <article>
+              <p>${'Long full article paragraph. '.repeat(40)}</p>
+              <script>alert('nope')</script>
+            </article>
+          ]]></content:encoded>
+        </item></channel>
+      </rss>`, 'application/rss+xml', 'https://example.com/feed.xml');
+
+    expect(feed.entries[0].summary_text).toBe('Short teaser only.');
+    expect(feed.entries[0].content_text).toContain('Long full article paragraph.');
+    expect(feed.entries[0].content_html_sanitized).toContain('<article>');
+    expect(feed.entries[0].content_html_sanitized).not.toContain('<script');
+    expect(feed.entries[0].content_text?.length).toBeGreaterThan(800);
+  });
+
   it('stores Atom HTML summaries as clean preview text', () => {
     const feed = parseFeed(`<?xml version="1.0"?>
       <feed xmlns="http://www.w3.org/2005/Atom">

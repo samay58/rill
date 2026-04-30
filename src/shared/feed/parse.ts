@@ -52,6 +52,10 @@ function contentFrom(html: string | null, text: string | null) {
   };
 }
 
+function htmlLike(value: string | null): string | null {
+  return value && /<[^>]+>/.test(value) ? value : null;
+}
+
 function normalizeUrl(value: string | null, baseUrl: string): string | null {
   const resolved = resolveUrl(value, baseUrl);
   if (!resolved) return null;
@@ -71,8 +75,8 @@ function parseRss(root: UnknownRecord, feedUrl: string): ParsedFeed {
     const title = textOf(item.title);
     const published = parseDate(item.pubDate) ?? parseDate(item.date);
     const summary = textOf(item.description);
-    const html = summary && /<[^>]+>/.test(summary) ? summary : null;
-    const content = contentFrom(html, summary);
+    const encodedContent = textOf(item['content:encoded']);
+    const content = contentFrom(htmlLike(encodedContent) ?? htmlLike(summary), encodedContent ?? summary);
     return {
       stable_external_id: stableEntryId(feedUrl, { externalId: rssGuid(item), url, title, publishedAt: published }),
       canonical_url: url,

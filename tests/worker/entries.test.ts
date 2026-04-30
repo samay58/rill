@@ -107,6 +107,38 @@ describe('entries routes', () => {
     expect(db.entries[0].content_html_raw).toBeNull();
   });
 
+  it('refreshes the parent feed for full RSS content before scraping the article page', async () => {
+    const db = seededDb();
+    db.entries[0].stable_external_id = 'full-feed-body';
+    db.entries[0].summary_text = 'Short teaser only.';
+    db.entries[0].content_text = 'Short teaser only.';
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      expect(String(input)).toBe('https://example.com/feed.xml');
+      return new Response(`<?xml version="1.0"?>
+        <rss xmlns:content="http://purl.org/rss/1.0/modules/content/">
+          <channel><title>Full RSS</title><item>
+            <title>Full feed body</title>
+            <guid>full-feed-body</guid>
+            <link>https://example.com/entry-1</link>
+            <description><![CDATA[<p>Short teaser only.</p>]]></description>
+            <content:encoded><![CDATA[<p>${'Full article from feed. '.repeat(50)}</p>]]></content:encoded>
+          </item></channel>
+        </rss>`, { headers: { 'content-type': 'application/rss+xml' } });
+    });
+    vi.stubGlobal('fetch', fetcher);
+
+    const response = await handleEntriesRoute(await authed('/api/entries/entry-1/extract', {
+      method: 'POST'
+    }), envFor(db), () => 5000);
+    const payload = await response!.json() as { ok: true; entry: Entry };
+
+    expect(response?.status).toBe(200);
+    expect(payload.ok).toBe(true);
+    expect(payload.entry.content_text).toContain('Full article from feed.');
+    expect(payload.entry.content_html_sanitized).toContain('<p>Full article from feed.');
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
   it('rejects extraction when the entry has no original article URL', async () => {
     const db = seededDb();
     db.entries[0].canonical_url = null;

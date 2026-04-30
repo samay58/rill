@@ -1,10 +1,14 @@
-import type { EntryStatePatch } from '../../shared/types';
+import type { EntryStatePatch, EntryWithState } from '../../shared/types';
+import { htmlToPlainText } from '../../shared/feed/sanitize';
 import type { Clock } from '../../shared/time';
 import { systemClock } from '../../shared/time';
 import { ArticleExtractionError, extractPublicArticle } from '../articleExtract';
 import { requireUser } from '../auth';
 import { getEntryForUser, listTodayEntries, patchEntryState, searchEntries, updateEntryExtractedContent } from '../db';
 import type { Env } from '../env';
+import { fetchAndStoreFeed } from '../feedFetch';
+
+const FULL_ARTICLE_TEXT_LENGTH = 800;
 
 function json(data: unknown, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
@@ -34,6 +38,27 @@ function parseLimit(url: URL, fallback = 25): number {
   const value = Number(url.searchParams.get('limit') ?? fallback);
   if (!Number.isFinite(value)) return fallback;
   return Math.max(1, Math.min(100, Math.floor(value)));
+}
+
+function readerTextLength(entry: Pick<EntryWithState, 'content_html_sanitized' | 'content_text' | 'summary_text'>): number {
+  const htmlText = entry.content_html_sanitized ? htmlToPlainText(entry.content_html_sanitized) : '';
+  const plainText = entry.content_text ?? entry.summary_text ?? '';
+  return Math.max(htmlText.trim().length, plainText.trim().length);
+}
+
+function hasFullReaderContent(entry: Pick<EntryWithState, 'content_html_sanitized' | 'content_text' | 'summary_text'>): boolean {
+  return readerTextLength(entry) >= FULL_ARTICLE_TEXT_LENGTH;
+}
+
+async function refreshEntryFromFeed(env: Env, userId: string, entry: EntryWithState, clock: Clock): Promise<EntryWithState | null> {
+  try {
+    await fetchAndStoreFeed(env, entry.feed_id, { clock });
+  } catch {
+    return null;
+  }
+  const refreshed = await getEntryForUser(env.DB, userId, entry.id);
+  if (!refreshed) return null;
+  return hasFullReaderContent(refreshed) && readerTextLength(refreshed) > readerTextLength(entry) ? refreshed : null;
 }
 
 function parsePatch(body: Record<string, unknown>, clock: Clock): EntryStatePatch {
@@ -76,6 +101,9 @@ export async function handleEntriesRoute(request: Request, env: Env, clock: Cloc
         message: 'This entry does not have an original article URL.'
       }, { status: 422 });
     }
+
+    const refreshedEntry = await refreshEntryFromFeed(env, user.id, entry, clock);
+    if (refreshedEntry) return json({ ok: true, entry: refreshedEntry });
 
     try {
       const content = await extractPublicArticle(entry.canonical_url);

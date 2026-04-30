@@ -28,6 +28,8 @@ describe('article extraction', () => {
     const headers = new Headers(fetcher.mock.calls[0][1]?.headers);
     expect(headers.has('cookie')).toBe(false);
     expect(headers.has('authorization')).toBe(false);
+    expect(headers.get('user-agent')).toContain('Mozilla/5.0');
+    expect(headers.get('accept-language')).toBe('en-US,en;q=0.9');
   });
 
   it('rejects private and malformed urls before fetch', () => {
