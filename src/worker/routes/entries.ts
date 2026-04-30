@@ -1,8 +1,9 @@
 import type { EntryStatePatch } from '../../shared/types';
 import type { Clock } from '../../shared/time';
 import { systemClock } from '../../shared/time';
+import { ArticleExtractionError, extractPublicArticle } from '../articleExtract';
 import { requireUser } from '../auth';
-import { getEntryForUser, listTodayEntries, patchEntryState, searchEntries } from '../db';
+import { getEntryForUser, listTodayEntries, patchEntryState, searchEntries, updateEntryExtractedContent } from '../db';
 import type { Env } from '../env';
 
 function json(data: unknown, init: ResponseInit = {}): Response {
@@ -59,6 +60,38 @@ export async function handleEntriesRoute(request: Request, env: Env, clock: Cloc
     if (!query) return json({ ok: true, entries: [] });
     const entries = await searchEntries(env.DB, user.id, query, parseLimit(url));
     return json({ ok: true, entries });
+  }
+
+  const extractMatch = url.pathname.match(/^\/api\/entries\/([^/]+)\/extract$/);
+  if (extractMatch && request.method === 'POST') {
+    const user = await routeUser(request, env, clock);
+    if (user instanceof Response) return user;
+    const entryId = decodeURIComponent(extractMatch[1]);
+    const entry = await getEntryForUser(env.DB, user.id, entryId);
+    if (!entry) return json({ ok: false, code: 'entry_not_found', message: 'Entry not found.' }, { status: 404 });
+    if (!entry.canonical_url) {
+      return json({
+        ok: false,
+        code: 'missing_article_url',
+        message: 'This entry does not have an original article URL.'
+      }, { status: 422 });
+    }
+
+    try {
+      const content = await extractPublicArticle(entry.canonical_url);
+      const updated = await updateEntryExtractedContent(env.DB, user.id, entryId, content, clock());
+      if (!updated) return json({ ok: false, code: 'entry_not_found', message: 'Entry not found.' }, { status: 404 });
+      return json({ ok: true, entry: updated });
+    } catch (error) {
+      if (error instanceof ArticleExtractionError) {
+        return json({ ok: false, code: error.code, message: error.message }, { status: error.status });
+      }
+      return json({
+        ok: false,
+        code: 'article_extract_failed',
+        message: 'Rill could not load the public article.'
+      }, { status: 422 });
+    }
   }
 
   const stateMatch = url.pathname.match(/^\/api\/entries\/([^/]+)\/state$/);

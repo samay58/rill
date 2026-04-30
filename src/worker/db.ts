@@ -1,4 +1,5 @@
 import { compareRankedEntries, plainTextFromMaybeHtml, rankSearchEntry } from '../shared/entryText';
+import { entryContentHash } from '../shared/contentHash';
 import type {
   Entry,
   EntryStatePatch,
@@ -299,6 +300,43 @@ export async function getEntryForUser(db: D1Database, userId: string, entryId: s
     WHERE e.id = ?
   `).bind(userId, entryId).first<EntryWithState>();
   return entry ? cleanEntryText(entry) : null;
+}
+
+export async function updateEntryExtractedContent(
+  db: D1Database,
+  userId: string,
+  entryId: string,
+  content: { title: string; content_text: string; content_html_sanitized: string; has_remote_images: number },
+  now: UnixMs
+): Promise<EntryWithState | null> {
+  const existing = await getEntryForUser(db, userId, entryId);
+  if (!existing) return null;
+
+  const title = existing.title ?? content.title;
+  await db.prepare(`
+    UPDATE entries
+    SET title = ?,
+      content_text = ?,
+      content_html_sanitized = ?,
+      has_remote_images = ?,
+      content_hash = ?,
+      updated_at = ?
+    WHERE id = ?
+  `).bind(
+    title,
+    content.content_text,
+    content.content_html_sanitized,
+    content.has_remote_images,
+    entryContentHash({
+      title,
+      content_text: content.content_text,
+      content_html_sanitized: content.content_html_sanitized
+    }),
+    now,
+    entryId
+  ).run();
+
+  return getEntryForUser(db, userId, entryId);
 }
 
 export async function searchEntries(db: D1Database, userId: string, query: string, limit = 25): Promise<EntryWithState[]> {

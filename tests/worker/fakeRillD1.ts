@@ -151,6 +151,7 @@ class FakeStatement {
     if (sqlIncludes(this.sql, 'INSERT INTO feeds')) this.upsertFeed();
     if (sqlIncludes(this.sql, 'INSERT INTO subscriptions')) this.upsertSubscription();
     if (sqlIncludes(this.sql, 'UPDATE subscriptions')) this.updateSubscription();
+    if (sqlIncludes(this.sql, 'UPDATE entries')) this.updateEntryExtractedContent();
     if (sqlIncludes(this.sql, 'DELETE FROM subscriptions')) this.deleteSubscription();
     if (sqlIncludes(this.sql, 'UPDATE feeds')) this.updateFeed();
     if (sqlIncludes(this.sql, 'INSERT INTO feed_fetch_runs')) this.insertFetchRun();
@@ -232,6 +233,18 @@ class FakeStatement {
     };
     if (existing) Object.assign(existing, next, { id: existing.id, created_at: existing.created_at });
     else this.db.entries.push(next);
+  }
+
+  private updateEntryExtractedContent(): void {
+    const [title, content_text, content_html_sanitized, has_remote_images, content_hash, updated_at, id] = this.args as [string | null, string, string, 0 | 1, string, UnixMs, string];
+    const entry = this.db.entries.find((candidate) => candidate.id === id);
+    if (!entry) return;
+    entry.title = title;
+    entry.content_text = content_text;
+    entry.content_html_sanitized = content_html_sanitized;
+    entry.has_remote_images = has_remote_images;
+    entry.content_hash = content_hash;
+    entry.updated_at = updated_at;
   }
 
   private updateFeed(): void {

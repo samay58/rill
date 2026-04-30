@@ -1,9 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createSessionCookie } from '../../src/worker/auth';
 import { handleEntriesRoute } from '../../src/worker/routes/entries';
 import type { Env } from '../../src/worker/env';
 import type { Entry, EntryUserState } from '../../src/shared/types';
+import { entryContentHash } from '../../src/shared/contentHash';
 import { FakeQueue, FakeRillD1, feed, subscription } from './fakeRillD1';
+
+function fixture(name: string): string {
+  return readFileSync(join(process.cwd(), 'tests/fixtures', name), 'utf8');
+}
 
 function envFor(db: FakeRillD1): Env {
   return {
@@ -66,6 +73,73 @@ function seededDb(): FakeRillD1 {
 }
 
 describe('entries routes', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('extracts public article content into a subscribed entry', async () => {
+    const db = seededDb();
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(fixture('readable-article.html'), {
+      headers: { 'content-type': 'text/html; charset=utf-8' }
+    })));
+
+    const response = await handleEntriesRoute(await authed('/api/entries/entry-1/extract', {
+      method: 'POST'
+    }), envFor(db), () => 5000);
+    const payload = await response!.json() as { ok: true; entry: Entry };
+
+    expect(response?.status).toBe(200);
+    expect(payload.ok).toBe(true);
+    expect(payload.entry).toMatchObject({
+      id: 'entry-1',
+      title: 'Quiet defaults',
+      updated_at: 5000,
+      content_html_raw: null
+    });
+    expect(payload.entry.content_text).toContain('first full paragraph');
+    expect(payload.entry.content_html_sanitized).toContain('<p>This is the first full paragraph');
+    expect(payload.entry.content_html_sanitized).not.toContain('<script');
+    expect(payload.entry.content_hash).toBe(entryContentHash({
+      title: payload.entry.title,
+      content_text: payload.entry.content_text,
+      content_html_sanitized: payload.entry.content_html_sanitized
+    }));
+    expect(db.entries[0].content_html_raw).toBeNull();
+  });
+
+  it('rejects extraction when the entry has no original article URL', async () => {
+    const db = seededDb();
+    db.entries[0].canonical_url = null;
+    vi.stubGlobal('fetch', vi.fn());
+
+    const response = await handleEntriesRoute(await authed('/api/entries/entry-1/extract', {
+      method: 'POST'
+    }), envFor(db), () => 5000);
+
+    await expect(response?.json()).resolves.toEqual({
+      ok: false,
+      code: 'missing_article_url',
+      message: 'This entry does not have an original article URL.'
+    });
+    expect(response?.status).toBe(422);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('does not extract entries outside the signed-in user subscriptions', async () => {
+    const db = seededDb();
+    db.feeds.push(feed({ id: 'feed-2', canonical_feed_url: 'https://elsewhere.example/feed.xml' }));
+    db.entries.push(entry({ id: 'entry-2', feed_id: 'feed-2', stable_external_id: 'entry-2' }));
+    vi.stubGlobal('fetch', vi.fn());
+
+    const response = await handleEntriesRoute(await authed('/api/entries/entry-2/extract', {
+      method: 'POST'
+    }), envFor(db), () => 5000);
+
+    await expect(response?.json()).resolves.toMatchObject({ ok: false, code: 'entry_not_found' });
+    expect(response?.status).toBe(404);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
   it('applies read and save final state without coupling saved to read', async () => {
     const db = seededDb();
 
