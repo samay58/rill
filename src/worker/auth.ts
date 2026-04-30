@@ -16,11 +16,10 @@ function bytesToBase64Url(bytes: ArrayBuffer): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
-function base64UrlToArrayBuffer(value: string): ArrayBuffer {
+function base64UrlToBytes(value: string): Uint8Array {
   const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
   const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
-  const bytes = Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
-  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+  return Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
 }
 
 export async function hashToken(token: string): Promise<string> {
@@ -57,7 +56,7 @@ export async function signSessionId(sessionId: string, secret: string): Promise<
 }
 
 export async function verifySessionSignature(sessionId: string, signature: string, secret: string): Promise<boolean> {
-  const signatureBytes = base64UrlToArrayBuffer(signature);
+  const signatureBytes = base64UrlToBytes(signature);
   return crypto.subtle.verify('HMAC', await hmacKey(secret), signatureBytes, new TextEncoder().encode(sessionId));
 }
 
