@@ -12,9 +12,12 @@ describe('Jina Reader fallback', () => {
       expect(headers.has('cookie')).toBe(false);
       expect(String(init?.body)).toContain('url=https%3A%2F%2Fexample.com%2Farticle%3Fa%3D1');
       return new Response(JSON.stringify({
-        title: 'Reader Article',
-        url: 'https://example.com/article?a=1',
-        content: `# Reader Article\n\n${'Full markdown body from the resolver. '.repeat(30)}\n\n<script>alert('nope')</script>`
+        code: 200,
+        data: {
+          title: 'Reader Article',
+          url: 'https://example.com/article?a=1',
+          content: `# Reader Article\n\n${'Full markdown body from the resolver. '.repeat(30)}\n\n<script>alert('nope')</script>`
+        }
       }), { headers: { 'content-type': 'application/json' } });
     });
 

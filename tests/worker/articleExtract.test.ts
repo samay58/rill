@@ -32,6 +32,23 @@ describe('article extraction', () => {
     expect(headers.get('accept-language')).toBe('en-US,en;q=0.9');
   });
 
+  it('resolves relative links in extracted article content against the final article URL', async () => {
+    const fetcher = vi.fn(async () => new Response(`
+      <html><head><title>Relative Links</title></head><body>
+        <article>
+          <h1>Relative Links</h1>
+          <p>${'Article paragraph with enough text to be readable. '.repeat(8)}</p>
+          <p><a href="/membership/">Membership</a></p>
+        </article>
+      </body></html>
+    `, { headers: { 'content-type': 'text/html; charset=utf-8' } }));
+
+    const result = await extractPublicArticle('https://publisher.example/posts/article', { fetcher, timeoutMs: 1000, maxBytes: 200_000 });
+
+    expect(result.content_html_sanitized).toContain('href="https://publisher.example/membership/"');
+    expect(result.content_html_sanitized).not.toContain('href="/membership/"');
+  });
+
   it('rejects private and malformed urls before fetch', () => {
     expect(isPublicHttpUrl('https://example.com/post')).toBe(true);
     expect(isPublicHttpUrl('http://1.1.1.1/post')).toBe(true);

@@ -17,6 +17,11 @@ interface JinaJsonResponse {
   title?: unknown;
   content?: unknown;
   url?: unknown;
+  data?: {
+    title?: unknown;
+    content?: unknown;
+    url?: unknown;
+  };
 }
 
 function escapeHtml(value: string): string {
@@ -80,9 +85,10 @@ async function readLimitedText(response: Response, maxBytes: number): Promise<st
 function parseReaderPayload(body: string): { title: string | null; markdown: string } {
   try {
     const parsed = JSON.parse(body) as JinaJsonResponse;
+    const data = parsed.data ?? parsed;
     return {
-      title: typeof parsed.title === 'string' && parsed.title.trim() ? parsed.title.trim() : null,
-      markdown: typeof parsed.content === 'string' ? parsed.content : ''
+      title: typeof data.title === 'string' && data.title.trim() ? data.title.trim() : null,
+      markdown: typeof data.content === 'string' ? data.content : ''
     };
   } catch {
     return { title: null, markdown: body };

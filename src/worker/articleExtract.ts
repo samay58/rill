@@ -223,7 +223,7 @@ async function fetchWithValidatedRedirects(
   startUrl: string,
   fetcher: ArticleFetcher,
   controller: AbortController
-): Promise<Response> {
+): Promise<{ response: Response; finalUrl: string }> {
   let currentUrl = startUrl;
 
   for (let redirectCount = 0; ; redirectCount += 1) {
@@ -238,7 +238,7 @@ async function fetchWithValidatedRedirects(
       if (response.url && !isPublicHttpUrl(response.url)) {
         throw invalidArticleUrl('Article redirected to a private URL.');
       }
-      return response;
+      return { response, finalUrl: response.url || currentUrl };
     }
 
     if (redirectCount >= MAX_REDIRECTS) {
@@ -276,8 +276,9 @@ export async function extractPublicArticle(url: string, options: ExtractPublicAr
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   let response: Response;
+  let finalUrl: string;
   try {
-    response = await fetchWithValidatedRedirects(url, fetcher, controller);
+    ({ response, finalUrl } = await fetchWithValidatedRedirects(url, fetcher, controller));
   } catch (error) {
     clearTimeout(timeout);
     throw error;
@@ -293,7 +294,7 @@ export async function extractPublicArticle(url: string, options: ExtractPublicAr
     const article = new Readability(document).parse();
     if (!article?.content) throw notReadable();
 
-    const contentHtml = sanitizeFeedHtml(article.content);
+    const contentHtml = sanitizeFeedHtml(article.content, { baseUrl: finalUrl });
     const contentText = htmlToPlainText(contentHtml);
     if (contentText.length < MIN_READABLE_TEXT_LENGTH) throw notReadable();
 

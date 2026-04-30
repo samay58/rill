@@ -38,9 +38,9 @@ function parseDate(value: unknown): UnixMs | null {
   return Number.isNaN(ms) ? null : ms;
 }
 
-function contentFrom(html: string | null, text: string | null) {
+function contentFrom(html: string | null, text: string | null, baseUrl: string) {
   const rawHtml = html;
-  const sanitized = rawHtml ? sanitizeFeedHtml(rawHtml) : null;
+  const sanitized = rawHtml ? sanitizeFeedHtml(rawHtml, { baseUrl }) : null;
   const remoteImages = rawHtml ? extractRemoteImages(rawHtml) : [];
   const plainText = rawHtml ? htmlToPlainText(rawHtml) || null : cleanFeedText(text);
   return {
@@ -76,7 +76,7 @@ function parseRss(root: UnknownRecord, feedUrl: string): ParsedFeed {
     const published = parseDate(item.pubDate) ?? parseDate(item.date);
     const summary = textOf(item.description);
     const encodedContent = textOf(item['content:encoded']);
-    const content = contentFrom(htmlLike(encodedContent) ?? htmlLike(summary), encodedContent ?? summary);
+    const content = contentFrom(htmlLike(encodedContent) ?? htmlLike(summary), encodedContent ?? summary, url ?? feedUrl);
     return {
       stable_external_id: stableEntryId(feedUrl, { externalId: rssGuid(item), url, title, publishedAt: published }),
       canonical_url: url,
@@ -114,7 +114,7 @@ function parseAtom(root: UnknownRecord, feedUrl: string): ParsedFeed {
     const contentHtml = textOf(entry.content);
     const summary = textOf(entry.summary);
     const html = contentRecord.type === 'html' ? contentHtml : null;
-    const content = contentFrom(html, contentRecord.type === 'text' ? contentHtml : summary);
+    const content = contentFrom(html, contentRecord.type === 'text' ? contentHtml : summary, url ?? feedUrl);
     return {
       stable_external_id: stableEntryId(feedUrl, { externalId: textOf(entry.id), url, title, publishedAt: published }),
       canonical_url: url,
@@ -156,7 +156,7 @@ function parseJsonFeed(json: UnknownRecord, feedUrl: string): ParsedFeed {
     const url = normalizeUrl(item.url ?? item.external_url ?? null, feedUrl);
     const title = item.title?.trim() || null;
     const published = parseDate(item.date_published);
-    const content = contentFrom(item.content_html ?? null, item.content_text ?? item.summary ?? null);
+    const content = contentFrom(item.content_html ?? null, item.content_text ?? item.summary ?? null, url ?? feedUrl);
     return {
       stable_external_id: stableEntryId(feedUrl, { externalId: item.id, url, title, publishedAt: published }),
       canonical_url: url,

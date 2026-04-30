@@ -43,4 +43,15 @@ describe('sanitizeFeedHtml', () => {
     expect(clean).not.toContain('<video');
     expect(clean).not.toContain('<audio');
   });
+
+  it('resolves relative article links when a publisher base URL is provided', () => {
+    const clean = sanitizeFeedHtml('<p><a href="/membership/">Join</a></p><a href="http://localhost:3000/serve-brings-out-the-boys">Story</a><a href="javascript:alert(1)">bad</a>', {
+      baseUrl: 'https://aquariumdrunkard.com/reviews/post'
+    });
+
+    expect(clean).toContain('href="https://aquariumdrunkard.com/membership/"');
+    expect(clean).toContain('href="https://aquariumdrunkard.com/serve-brings-out-the-boys"');
+    expect(clean).not.toContain('localhost');
+    expect(clean).not.toContain('javascript:');
+  });
 });

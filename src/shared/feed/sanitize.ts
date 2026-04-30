@@ -7,17 +7,26 @@ const BLOCKED_TAGS = new Set(['script', 'iframe', 'object', 'embed', 'form', 'in
 const URL_ATTRS = new Set(['href', 'src', 'poster']);
 const ALLOWED_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
 
+export interface SanitizeHtmlOptions {
+  baseUrl?: string | null;
+}
+
 function isElement(node: AnyNode): node is Element {
   return node.type === 'tag' || node.type === 'script' || node.type === 'style';
 }
 
-function isSafeUrl(value: string): boolean {
+function safeAbsoluteUrl(value: string, baseUrl?: string | null): string | null {
   try {
-    const parsed = new URL(value, 'https://rill.local');
-    if (parsed.protocol === 'https:' || parsed.protocol === 'http:') return true;
-    return ALLOWED_PROTOCOLS.has(parsed.protocol);
+    const parsed = baseUrl ? new URL(value, baseUrl) : new URL(value);
+    if (baseUrl && (parsed.hostname === 'localhost' || parsed.hostname.endsWith('.localhost'))) {
+      const resolved = new URL(`${parsed.pathname}${parsed.search}${parsed.hash}`, baseUrl);
+      if (!ALLOWED_PROTOCOLS.has(resolved.protocol)) return null;
+      return resolved.toString();
+    }
+    if (!ALLOWED_PROTOCOLS.has(parsed.protocol)) return null;
+    return parsed.toString();
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -30,7 +39,7 @@ function isAbsoluteHttpUrl(value: string): boolean {
   }
 }
 
-function cleanNode(node: AnyNode): AnyNode | null {
+function cleanNode(node: AnyNode, options: SanitizeHtmlOptions = {}): AnyNode | null {
   if (!isElement(node)) return node;
   if (BLOCKED_TAGS.has(node.name.toLowerCase())) return null;
 
@@ -45,18 +54,21 @@ function cleanNode(node: AnyNode): AnyNode | null {
       delete node.attribs[attr];
       continue;
     }
-    if (URL_ATTRS.has(lower) && !isSafeUrl(value)) {
-      delete node.attribs[attr];
+    if (URL_ATTRS.has(lower)) {
+      const safeUrl = safeAbsoluteUrl(value, options.baseUrl);
+      if (safeUrl) node.attribs[attr] = safeUrl;
+      else delete node.attribs[attr];
+      continue;
     }
   }
 
-  node.children = node.children.map(cleanNode).filter((child): child is AnyNode => child !== null);
+  node.children = node.children.map((child) => cleanNode(child, options)).filter((child): child is AnyNode => child !== null);
   return node;
 }
 
-export function sanitizeFeedHtml(html: string): string {
+export function sanitizeFeedHtml(html: string, options: SanitizeHtmlOptions = {}): string {
   const document = parseDocument(html, { decodeEntities: true });
-  document.children = document.children.map(cleanNode).filter((child): child is AnyNode => child !== null);
+  document.children = document.children.map((child) => cleanNode(child, options)).filter((child): child is AnyNode => child !== null);
   return render(document.children, { encodeEntities: 'utf8' });
 }
 

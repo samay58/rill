@@ -78,6 +78,19 @@ describe('parseFeed', () => {
     expect(feed.entries[0].content_text?.length).toBeGreaterThan(800);
   });
 
+  it('resolves relative RSS body links against the entry URL', () => {
+    const feed = parseFeed(`<?xml version="1.0"?>
+      <rss><channel><title>Relative RSS</title><item>
+        <title>Relative body</title>
+        <guid>relative-body</guid>
+        <link>https://example.com/posts/relative-body</link>
+        <description><![CDATA[<p>Read the <a href="/membership/">membership page</a>.</p>]]></description>
+      </item></channel></rss>`, 'application/rss+xml', 'https://example.com/feed.xml');
+
+    expect(feed.entries[0].content_html_sanitized).toContain('href="https://example.com/membership/"');
+    expect(feed.entries[0].content_html_sanitized).not.toContain('href="/membership/"');
+  });
+
   it('stores Atom HTML summaries as clean preview text', () => {
     const feed = parseFeed(`<?xml version="1.0"?>
       <feed xmlns="http://www.w3.org/2005/Atom">
