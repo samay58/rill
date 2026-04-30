@@ -3,8 +3,8 @@ import render from 'dom-serializer';
 import type { AnyNode, Element, Text } from 'domhandler';
 import { normalizeText, plainTextFromMaybeHtml } from '../entryText';
 
-const BLOCKED_TAGS = new Set(['script', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'textarea', 'select', 'style', 'link', 'meta']);
-const URL_ATTRS = new Set(['href', 'src']);
+const BLOCKED_TAGS = new Set(['script', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'textarea', 'select', 'style', 'link', 'meta', 'source', 'video', 'audio', 'track']);
+const URL_ATTRS = new Set(['href', 'src', 'poster']);
 const ALLOWED_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
 
 function isElement(node: AnyNode): node is Element {
@@ -21,6 +21,15 @@ function isSafeUrl(value: string): boolean {
   }
 }
 
+function isAbsoluteHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 function cleanNode(node: AnyNode): AnyNode | null {
   if (!isElement(node)) return node;
   if (BLOCKED_TAGS.has(node.name.toLowerCase())) return null;
@@ -29,6 +38,10 @@ function cleanNode(node: AnyNode): AnyNode | null {
     const lower = attr.toLowerCase();
     const value = node.attribs[attr];
     if (lower.startsWith('on') || lower === 'srcset') {
+      delete node.attribs[attr];
+      continue;
+    }
+    if (lower === 'src' && node.name.toLowerCase() === 'img' && !isAbsoluteHttpUrl(value)) {
       delete node.attribs[attr];
       continue;
     }

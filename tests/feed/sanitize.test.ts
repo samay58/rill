@@ -21,4 +21,26 @@ describe('sanitizeFeedHtml', () => {
   it('extracts remote image urls before images are hidden by the reader', () => {
     expect(extractRemoteImages(unsafe)).toEqual(['https://images.example/pixel.png']);
   });
+
+  it('removes relative media sources that would request same-origin paths', () => {
+    const clean = sanitizeFeedHtml(`
+      <p>Article copy.</p>
+      <picture>
+        <source srcset="/photo.webp">
+        <img src="/why-everyone-you-know-is-playing-padel" alt="">
+      </picture>
+      <video poster="/poster.jpg" src="/clip.mp4"></video>
+      <audio src="/clip.mp3"></audio>
+    `);
+
+    expect(clean).toContain('Article copy.');
+    expect(clean).not.toContain('/why-everyone-you-know-is-playing-padel');
+    expect(clean).not.toContain('/photo.webp');
+    expect(clean).not.toContain('/poster.jpg');
+    expect(clean).not.toContain('/clip.mp4');
+    expect(clean).not.toContain('/clip.mp3');
+    expect(clean).not.toContain('<source');
+    expect(clean).not.toContain('<video');
+    expect(clean).not.toContain('<audio');
+  });
 });

@@ -190,7 +190,7 @@ async function readLimitedText(response: Response, maxBytes: number): Promise<st
 }
 
 function notReadable(): ArticleExtractionError {
-  return new ArticleExtractionError('article_not_readable', 'Article could not be extracted.');
+  return new ArticleExtractionError('article_not_readable', 'Rill could not find a readable public article body.');
 }
 
 function extractContentTitle(contentHtml: string): string | null {

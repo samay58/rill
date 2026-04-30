@@ -32,8 +32,8 @@ function remoteImageCount(html: string | null): number {
 
 function htmlWithoutImages(html: string): string {
   const parsed = parseHtml(html);
-  if (!parsed) return html.replace(/<img\b[^>]*>/gi, '');
-  parsed.querySelectorAll('img').forEach((image) => image.remove());
+  if (!parsed) return html.replace(/<(img|source|video|audio|track)\b[^>]*>(?:<\/\1>)?/gi, '');
+  parsed.querySelectorAll('img, source, video, audio, track').forEach((node) => node.remove());
   return parsed.querySelector('main')?.innerHTML ?? '';
 }
 
@@ -42,11 +42,15 @@ function htmlWithProxiedImages(html: string, entryId: string): string {
   if (!parsed) return htmlWithoutImages(html);
   parsed.querySelectorAll<HTMLImageElement>('img').forEach((image) => {
     const source = image.getAttribute('src') ?? '';
-    if (!/^https?:\/\//i.test(source)) return;
+    if (!/^https?:\/\//i.test(source)) {
+      image.remove();
+      return;
+    }
     image.setAttribute('src', `/api/image?entry_id=${encodeURIComponent(entryId)}&src=${encodeURIComponent(source)}`);
     image.setAttribute('loading', 'lazy');
     image.setAttribute('referrerpolicy', 'no-referrer');
   });
+  parsed.querySelectorAll('source, video, audio, track').forEach((node) => node.remove());
   return parsed.querySelector('main')?.innerHTML ?? '';
 }
 

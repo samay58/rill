@@ -260,6 +260,22 @@ describe('Today and Reader', () => {
     expect(host.querySelector<HTMLImageElement>('.reader-body img')?.src).toContain('/api/image?entry_id=image-teaser');
   });
 
+  it('does not render relative extracted images even after images are loaded', () => {
+    const host = render(<App initialUnlocked initialEntries={[entry('relative-image', {
+      title: 'Relative media from publisher',
+      content_html_sanitized: '<p>Full publisher copy.</p><img src="/why-everyone-you-know-is-playing-padel" alt="">',
+      has_remote_images: 1
+    })]} />);
+
+    click('[data-entry-id="relative-image"] .entry-open-button');
+    expect(host.textContent).toContain('1 remote image hidden');
+    expect(host.querySelector('.reader-body img')).toBeNull();
+
+    click('[data-action="load-entry-images"]');
+    expect(host.textContent).toContain('Full publisher copy.');
+    expect(host.querySelector('.reader-body img')).toBeNull();
+  });
+
   it('preserves local reader state when extraction returns stale state fields', async () => {
     let resolveExtraction: (value: unknown) => void = () => undefined;
     const extracted = entry('stateful-teaser', {
