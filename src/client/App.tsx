@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AppView } from './design';
-import { importOpml, patchSubscription as patchRemoteSubscription, refreshAllSubscriptions, refreshSubscription, removeSubscription } from './api';
+import { extractEntryContent, importOpml, patchSubscription as patchRemoteSubscription, refreshAllSubscriptions, refreshSubscription, removeSubscription } from './api';
 import { type LocalStore, openRillLocalStore } from './db';
 import { defaultSyncApi, loadCachedState, queueEntryStateMutation, replayPendingMutations, syncSince, bootstrapFromServer, type CachedClientState, type RillSyncApi } from './sync';
 import type { EntryStatePatch, Feed, Subscription } from '../shared/types';
@@ -82,6 +82,8 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
   const [userId, setUserId] = useState<string | null>(null);
   const [isRefreshingAll, setIsRefreshingAll] = useState(false);
   const [refreshingSourceIds, setRefreshingSourceIds] = useState<Set<string>>(() => new Set());
+  const [extractingEntryIds, setExtractingEntryIds] = useState<Set<string>>(() => new Set());
+  const [extractionErrors, setExtractionErrors] = useState<Record<string, string>>({});
   const shouldAutoSync = initialEntries.length === 0 || Boolean(localStore);
   const [isCheckingSession, setIsCheckingSession] = useState(!initialUnlocked && shouldAutoSync);
 
@@ -225,6 +227,32 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
     setRoute(`reader:${entryId}`);
   }
 
+  async function loadFullArticle(entryId: string) {
+    setExtractionErrors((current) => {
+      const next = { ...current };
+      delete next[entryId];
+      return next;
+    });
+    setExtractingEntryIds((current) => new Set(current).add(entryId));
+    try {
+      const extractedEntry = await extractEntryContent(entryId);
+      setEntries((current) => current.map((entry) => entry.id === entryId ? { ...entry, ...extractedEntry } : entry));
+      const store = runtimeStore;
+      if (store) await store.put('entries', extractedEntry);
+    } catch (error) {
+      setExtractionErrors((current) => ({
+        ...current,
+        [entryId]: error instanceof Error ? error.message : 'Could not load the full article.'
+      }));
+    } finally {
+      setExtractingEntryIds((current) => {
+        const next = new Set(current);
+        next.delete(entryId);
+        return next;
+      });
+    }
+  }
+
   if (isCheckingSession) {
     return (
       <main className="unlock-shell" aria-label="Opening Rill">
@@ -283,6 +311,9 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
             updateEntry(entryId, (entry, now) => ({ ...entry, read_at: null, updated_at: now }));
             persistEntryPatch(entryId, { read: false });
           }}
+          onLoadFullArticle={(entryId) => { void loadFullArticle(entryId); }}
+          isLoadingFullArticle={extractingEntryIds.has(selectedEntry.id)}
+          fullArticleError={extractionErrors[selectedEntry.id]}
         />
       ) : null}
     </Shell>

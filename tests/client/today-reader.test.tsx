@@ -29,6 +29,7 @@ afterEach(() => {
   container?.remove();
   container = null;
   root = null;
+  vi.unstubAllGlobals();
 });
 
 function entry(id: string, overrides: Partial<ReadingEntry> = {}): ReadingEntry {
@@ -120,6 +121,95 @@ describe('Today and Reader', () => {
     expect(host.querySelector<HTMLAnchorElement>('[data-action="open-original"]')?.href).toBe('https://example.com/original');
     expect(host.querySelectorAll('img[src^="http"]')).toHaveLength(0);
     expect(host.querySelector('.reader-body blockquote')?.textContent).toContain('Quoted note.');
+  });
+
+  it('loads public full articles from Reader while keeping Open Original visible', async () => {
+    const fullText = `Full body from the publisher.\n\n${'A complete article paragraph with enough substance to replace the feed preview. '.repeat(14)}`;
+    const extracted = entry('teaser', {
+      title: 'Publisher original',
+      canonical_url: 'https://example.com/original',
+      summary_text: 'Short feed preview.',
+      content_text: fullText,
+      content_html_sanitized: null,
+      updated_at: 2
+    });
+    const fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ ok: true, entry: extracted })
+    }));
+    vi.stubGlobal('fetch', fetch);
+    const host = render(<App initialUnlocked initialEntries={[entry('teaser', {
+      title: 'Publisher original',
+      canonical_url: 'https://example.com/original',
+      summary_text: 'Short feed preview.',
+      content_text: 'Short feed preview.'
+    })]} />);
+
+    click('[data-entry-id="teaser"] .entry-open-button');
+    await act(async () => host.querySelector<HTMLButtonElement>('[data-action="load-full-article"]')!.click());
+
+    expect(host.textContent).toContain('Full body from the publisher.');
+    expect(host.querySelector('[data-action="load-full-article"]')).toBeNull();
+    expect(host.querySelector<HTMLAnchorElement>('[data-action="open-original"]')?.href).toBe('https://example.com/original');
+    expect(fetch).toHaveBeenCalledWith('/api/entries/teaser/extract', {
+      method: 'POST',
+      credentials: 'same-origin'
+    });
+  });
+
+  it('shows extraction failures while preserving teaser content and original link', async () => {
+    const fetch = vi.fn(async () => ({
+      ok: false,
+      status: 502,
+      statusText: 'Bad Gateway',
+      json: async () => ({ ok: false, code: 'extract_failed', message: 'Publisher blocked extraction.' })
+    }));
+    vi.stubGlobal('fetch', fetch);
+    const host = render(<App initialUnlocked initialEntries={[entry('teaser', {
+      title: 'A public preview',
+      canonical_url: 'https://example.com/original',
+      summary_text: 'Short feed preview.',
+      content_text: 'Teaser paragraph stays visible.'
+    })]} />);
+
+    click('[data-entry-id="teaser"] .entry-open-button');
+    await act(async () => host.querySelector<HTMLButtonElement>('[data-action="load-full-article"]')!.click());
+
+    expect(host.textContent).toContain('Publisher blocked extraction.');
+    expect(host.textContent).toContain('Teaser paragraph stays visible.');
+    expect(host.querySelector<HTMLAnchorElement>('[data-action="open-original"]')?.href).toBe('https://example.com/original');
+  });
+
+  it('keeps extracted remote images hidden until explicitly loaded', async () => {
+    const extracted = entry('image-teaser', {
+      title: 'Images from the original',
+      canonical_url: 'https://example.com/original',
+      content_html_sanitized: `<p>${'Full publisher copy. '.repeat(50)}</p><img src="https://cdn.example.com/photo.jpg" alt="Publisher photo">`,
+      content_text: null,
+      has_remote_images: 1,
+      updated_at: 2
+    });
+    const fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ ok: true, entry: extracted })
+    }));
+    vi.stubGlobal('fetch', fetch);
+    const host = render(<App initialUnlocked initialEntries={[entry('image-teaser', {
+      title: 'Images from the original',
+      canonical_url: 'https://example.com/original',
+      summary_text: 'Short feed preview.',
+      content_text: 'Short feed preview.'
+    })]} />);
+
+    click('[data-entry-id="image-teaser"] .entry-open-button');
+    await act(async () => host.querySelector<HTMLButtonElement>('[data-action="load-full-article"]')!.click());
+
+    expect(host.textContent).toContain('Full publisher copy.');
+    expect(host.textContent).toContain('1 remote image hidden');
+    expect(host.querySelectorAll('img[src^="http"]')).toHaveLength(0);
+
+    click('[data-action="load-entry-images"]');
+    expect(host.querySelector<HTMLImageElement>('.reader-body img')?.src).toContain('/api/image?entry_id=image-teaser');
   });
 
   it('renders compact plain-text previews in Today', () => {

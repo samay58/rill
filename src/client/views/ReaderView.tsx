@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ReadingEntry } from './TodayView';
+import { canLoadFullArticle } from './readerContent';
 
 interface ReaderViewProps {
   entry: ReadingEntry;
@@ -7,6 +8,9 @@ interface ReaderViewProps {
   onSave: (entryId: string) => void;
   onArchive: (entryId: string) => void;
   onMarkUnread: (entryId: string) => void;
+  onLoadFullArticle?: (entryId: string) => void;
+  isLoadingFullArticle?: boolean;
+  fullArticleError?: string;
 }
 
 function formatDate(timestamp: number | null): string {
@@ -50,9 +54,10 @@ function textParagraphs(text: string | null): string[] {
   return (text ?? '').split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean);
 }
 
-export function ReaderView({ entry, onBack, onSave, onArchive, onMarkUnread }: ReaderViewProps) {
+export function ReaderView({ entry, onBack, onSave, onArchive, onMarkUnread, onLoadFullArticle, isLoadingFullArticle = false, fullArticleError }: ReaderViewProps) {
   const [imagesLoaded, setImagesLoaded] = useState(false);
   const hiddenImages = Math.max(remoteImageCount(entry.content_html_sanitized), entry.has_remote_images ? 1 : 0);
+  const canExtractArticle = canLoadFullArticle(entry);
   const safeHtml = entry.content_html_sanitized
     ? imagesLoaded ? htmlWithProxiedImages(entry.content_html_sanitized, entry.id) : htmlWithoutImages(entry.content_html_sanitized)
     : null;
@@ -75,6 +80,20 @@ export function ReaderView({ entry, onBack, onSave, onArchive, onMarkUnread }: R
         <p className="reader-byline">{byline}</p>
         <h1 id="reader-title">{entry.title ?? 'Untitled'}</h1>
         {entry.saved_at ? <p className="reader-state-note">Saved to Saved</p> : null}
+        {canExtractArticle ? (
+          <div className="reader-extraction-banner">
+            <p>{fullArticleError ?? 'This feed only provided a short preview.'}</p>
+            <button
+              type="button"
+              data-action="load-full-article"
+              disabled={isLoadingFullArticle}
+              aria-busy={isLoadingFullArticle}
+              onClick={() => onLoadFullArticle?.(entry.id)}
+            >
+              {isLoadingFullArticle ? 'Loading article' : 'Load full article'}
+            </button>
+          </div>
+        ) : null}
         {hiddenImages > 0 && !imagesLoaded ? (
           <div className="hidden-images-banner">
             <span aria-hidden="true">▧</span>

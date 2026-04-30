@@ -524,6 +524,31 @@ svg {
   font-size: 12px;
 }
 
+.reader-extraction-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: -10px 0 24px;
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: var(--color-sidebar);
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.reader-extraction-banner p {
+  margin: 0;
+}
+
+.reader-extraction-banner button {
+  flex: none;
+  margin-left: auto;
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
 .hidden-images-banner p {
   margin: 0;
 }
@@ -1019,6 +1044,7 @@ svg {
     line-height: 36px;
   }
 
+  .reader-extraction-banner,
   .hidden-images-banner {
     align-items: flex-start;
   }
@@ -1136,6 +1162,7 @@ svg {
   .reader-toolbar a:hover,
   .source-actions button:hover,
   .sources-footer button:hover,
+  .reader-extraction-banner button:hover,
   .hidden-images-banner button:hover,
   .search-result:hover strong,
   .entry-open-button:hover h2 {
