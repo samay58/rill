@@ -3,7 +3,7 @@ import { AppView } from './design';
 import { extractEntryContent, importOpml, patchSubscription as patchRemoteSubscription, refreshAllSubscriptions, refreshSubscription, removeSubscription } from './api';
 import { type LocalStore, openRillLocalStore } from './db';
 import { defaultSyncApi, loadCachedState, queueEntryStateMutation, replayPendingMutations, syncSince, bootstrapFromServer, type CachedClientState, type RillSyncApi } from './sync';
-import type { EntryStatePatch, Feed, Subscription } from '../shared/types';
+import type { Entry, EntryStatePatch, Feed, Subscription } from '../shared/types';
 import { AddSourceView } from './views/AddSourceView';
 import { ReaderView } from './views/ReaderView';
 import { SavedView } from './views/SavedView';
@@ -70,6 +70,39 @@ function sourceRows(feeds: Feed[], subscriptions: Subscription[], entries: Readi
       isRefreshing: refreshingSourceIds.has(subscription.id)
     };
   });
+}
+
+function entryRowFromReadingEntry(entry: ReadingEntry): Entry {
+  return {
+    id: entry.id,
+    feed_id: entry.feed_id,
+    stable_external_id: entry.stable_external_id,
+    canonical_url: entry.canonical_url,
+    title: entry.title,
+    author: entry.author,
+    published_at: entry.published_at,
+    updated_at_feed: entry.updated_at_feed,
+    summary_text: entry.summary_text,
+    content_text: entry.content_text,
+    content_html_sanitized: entry.content_html_sanitized,
+    content_html_raw: entry.content_html_raw,
+    has_remote_images: entry.has_remote_images,
+    content_hash: entry.content_hash,
+    created_at: entry.created_at,
+    updated_at: entry.updated_at
+  };
+}
+
+function mergeExtractedEntry(current: ReadingEntry, extracted: ReadingEntry): ReadingEntry {
+  return {
+    ...current,
+    ...entryRowFromReadingEntry(extracted),
+    source_title: extracted.source_title ?? current.source_title,
+    read_at: current.read_at,
+    saved_at: current.saved_at,
+    archived_at: current.archived_at,
+    last_opened_at: current.last_opened_at
+  };
 }
 
 export function App({ initialUnlocked = false, initialEntries = [], clock = () => Date.now(), localStore, syncApi = defaultSyncApi }: AppProps) {
@@ -236,9 +269,9 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
     setExtractingEntryIds((current) => new Set(current).add(entryId));
     try {
       const extractedEntry = await extractEntryContent(entryId);
-      setEntries((current) => current.map((entry) => entry.id === entryId ? { ...entry, ...extractedEntry } : entry));
+      setEntries((current) => current.map((entry) => entry.id === entryId ? mergeExtractedEntry(entry, extractedEntry) : entry));
       const store = runtimeStore;
-      if (store) await store.put('entries', extractedEntry);
+      if (store) await store.put('entries', entryRowFromReadingEntry(extractedEntry));
     } catch (error) {
       setExtractionErrors((current) => ({
         ...current,

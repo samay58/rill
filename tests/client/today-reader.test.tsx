@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../../src/client/App';
 import type { ReadingEntry } from '../../src/client/views/TodayView';
 import { TodayView } from '../../src/client/views/TodayView';
+import type { EntryUserState, Feed, Subscription } from '../../src/shared/types';
+import { MemoryStore } from './memoryStore';
 
 let container: HTMLDivElement | null = null;
 let root: Root | null = null;
@@ -55,6 +57,52 @@ function entry(id: string, overrides: Partial<ReadingEntry> = {}): ReadingEntry 
     saved_at: null,
     archived_at: null,
     last_opened_at: null,
+    ...overrides
+  };
+}
+
+function feed(overrides: Partial<Feed> = {}): Feed {
+  return {
+    id: 'feed-1',
+    canonical_feed_url: 'https://example.com/feed.xml',
+    site_url: 'https://example.com/',
+    discovered_from_url: null,
+    feed_type: 'rss',
+    title: 'Notebook Letters',
+    description: null,
+    language: null,
+    etag: null,
+    last_modified: null,
+    icon_url: null,
+    updated_at: 1,
+    created_at: 1,
+    ...overrides
+  };
+}
+
+function subscription(overrides: Partial<Subscription> = {}): Subscription {
+  return {
+    id: 'sub-1',
+    user_id: 'user-1',
+    feed_id: 'feed-1',
+    folder: null,
+    sort_order: 0,
+    is_archived: 0,
+    created_at: 1,
+    updated_at: 1,
+    ...overrides
+  };
+}
+
+function entryState(entryId: string, overrides: Partial<EntryUserState> = {}): EntryUserState {
+  return {
+    user_id: 'user-1',
+    entry_id: entryId,
+    read_at: null,
+    saved_at: null,
+    archived_at: null,
+    last_opened_at: null,
+    updated_at: 1,
     ...overrides
   };
 }
@@ -210,6 +258,103 @@ describe('Today and Reader', () => {
 
     click('[data-action="load-entry-images"]');
     expect(host.querySelector<HTMLImageElement>('.reader-body img')?.src).toContain('/api/image?entry_id=image-teaser');
+  });
+
+  it('preserves local reader state when extraction returns stale state fields', async () => {
+    let resolveExtraction: (value: unknown) => void = () => undefined;
+    const extracted = entry('stateful-teaser', {
+      title: 'Extracted article',
+      canonical_url: 'https://example.com/original',
+      summary_text: 'Short feed preview.',
+      content_text: `${'Full article text. '.repeat(60)}`,
+      read_at: null,
+      saved_at: null,
+      archived_at: null,
+      last_opened_at: null,
+      updated_at: 2
+    });
+    const fetch = vi.fn(() => new Promise((resolve) => { resolveExtraction = resolve; }));
+    vi.stubGlobal('fetch', fetch);
+    const host = render(<App initialUnlocked initialEntries={[entry('stateful-teaser', {
+      title: 'Stateful teaser',
+      canonical_url: 'https://example.com/original',
+      summary_text: 'Short feed preview.',
+      content_text: 'Short feed preview.',
+      saved_at: null
+    })]} clock={() => 5000} />);
+
+    click('[data-entry-id="stateful-teaser"] .entry-open-button');
+    await act(async () => host.querySelector<HTMLButtonElement>('[data-action="load-full-article"]')!.click());
+    click('[data-action="save-entry"]');
+    expect(host.querySelector('[data-action="save-entry"]')?.textContent).toBe('Saved');
+
+    await act(async () => {
+      resolveExtraction({
+        ok: true,
+        json: async () => ({ ok: true, entry: extracted })
+      });
+      await Promise.resolve();
+    });
+
+    expect(host.textContent).toContain('Full article text.');
+    expect(host.querySelector('[data-action="save-entry"]')?.textContent).toBe('Saved');
+    click('[data-action="back-to-today"]');
+    expect(host.textContent).toContain('Caught up for now');
+  });
+
+  it('stores extracted content as an entry row without user-state fields', async () => {
+    const store = new MemoryStore();
+    const teaser = entry('cached-teaser', {
+      title: 'Cached teaser',
+      canonical_url: 'https://example.com/original',
+      summary_text: 'Short feed preview.',
+      content_text: 'Short feed preview.',
+      read_at: null,
+      saved_at: null,
+      archived_at: null,
+      last_opened_at: null
+    });
+    await store.put('feeds', feed());
+    await store.put('subscriptions', subscription());
+    await store.put('entries', teaser);
+    await store.put('entryState', entryState('cached-teaser'));
+    const extracted = entry('cached-teaser', {
+      title: 'Cached full article',
+      canonical_url: 'https://example.com/original',
+      summary_text: 'Short feed preview.',
+      content_text: `${'Full cached article. '.repeat(60)}`,
+      read_at: null,
+      saved_at: 123,
+      archived_at: 456,
+      last_opened_at: 789,
+      updated_at: 2
+    });
+    const fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ ok: true, entry: extracted })
+    }));
+    vi.stubGlobal('fetch', fetch);
+    const host = render(<App
+      initialUnlocked
+      initialEntries={[teaser]}
+      localStore={store}
+      syncApi={{
+        bootstrap: () => new Promise(() => undefined),
+        syncSince: () => new Promise(() => undefined),
+        patchEntryState: async () => entryState('cached-teaser')
+      }}
+    />);
+
+    click('[data-entry-id="cached-teaser"] .entry-open-button');
+    await act(async () => host.querySelector<HTMLButtonElement>('[data-action="load-full-article"]')!.click());
+
+    const stored = await store.get<Record<string, unknown>>('entries', 'cached-teaser');
+    expect(stored?.content_text).toContain('Full cached article.');
+    expect(stored).not.toHaveProperty('source_title');
+    expect(stored).not.toHaveProperty('read_at');
+    expect(stored).not.toHaveProperty('saved_at');
+    expect(stored).not.toHaveProperty('archived_at');
+    expect(stored).not.toHaveProperty('last_opened_at');
   });
 
   it('renders compact plain-text previews in Today', () => {

@@ -540,6 +540,8 @@ svg {
 
 .reader-extraction-banner p {
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .reader-extraction-banner button {
@@ -1047,6 +1049,14 @@ svg {
   .reader-extraction-banner,
   .hidden-images-banner {
     align-items: flex-start;
+  }
+
+  .reader-extraction-banner {
+    flex-direction: column;
+  }
+
+  .reader-extraction-banner button {
+    margin-left: 0;
   }
 
   .mobile-tabbar {
