@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>What Rill Does</title>
+    <style>
+      :root {
+        --paper: #faf8f2;
+        --paper-deep: #f0eadf;
+        --ink: #242116;
+        --muted: #746f62;
+        --quiet: #a29a89;
+        --line: #d9d0c1;
+        --leaf: #3d5a38;
+        --leaf-soft: #dfe8d7;
+        --blue: #dfe8ed;
+        --clay: #eee0d4;
+        --gold: #efe3b4;
+        --font-ui: "Avenir Next", "Helvetica Neue", Helvetica, sans-serif;
+        --font-reading: Georgia, "Times New Roman", serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        background: var(--paper);
+        color: var(--ink);
+        font-family: var(--font-ui);
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        background:
+          linear-gradient(90deg, transparent 0, transparent 23px, #eee8da 24px, transparent 25px),
+          var(--paper);
+        background-size: 48px 48px;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      img {
+        max-width: 100%;
+      }
+
+      .page {
+        width: min(1120px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 28px 0 48px;
+      }
+
+      .masthead {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 20px;
+        padding: 18px 0 28px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+
+      .brand img {
+        width: 34px;
+        height: 34px;
+        border-radius: 7px;
+        outline: 1px solid #d7cfbf;
+        outline-offset: -1px;
+      }
+
+      .brand strong {
+        font-family: var(--font-reading);
+        font-size: 24px;
+        font-weight: 400;
+        letter-spacing: 0;
+      }
+
+      .note {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 0.92fr) minmax(360px, 1.08fr);
+        gap: clamp(28px, 5vw, 72px);
+        align-items: end;
+        padding: clamp(42px, 8vw, 86px) 0 clamp(34px, 6vw, 64px);
+      }
+
+      .eyebrow {
+        width: fit-content;
+        margin: 0 0 18px;
+        padding: 6px 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: #f6f1e8;
+        color: var(--leaf);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        max-width: 720px;
+        margin: 0;
+        font-family: var(--font-reading);
+        font-size: clamp(48px, 8.4vw, 112px);
+        font-weight: 400;
+        line-height: 0.93;
+        letter-spacing: 0;
+      }
+
+      h1,
+      .lead,
+      .answer-box,
+      .tile p,
+      .panel li,
+      .row p {
+        overflow-wrap: break-word;
+      }
+
+      .lead {
+        max-width: 610px;
+        margin: 26px 0 0;
+        color: var(--muted);
+        font-family: var(--font-reading);
+        font-size: clamp(20px, 2.4vw, 30px);
+        line-height: 1.28;
+      }
+
+      .cover {
+        min-width: 0;
+        margin: 0;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+        background: var(--paper-deep);
+        box-shadow: 0 18px 50px #ded4c4;
+      }
+
+      .cover img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      .plain-answer {
+        display: grid;
+        grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+        gap: clamp(24px, 4vw, 56px);
+        align-items: start;
+        padding: 30px 0;
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+      }
+
+      .hero > *,
+      .plain-answer > *,
+      .split > *,
+      .row > * {
+        min-width: 0;
+      }
+
+      .plain-answer h2,
+      .section h2 {
+        margin: 0;
+        font-family: var(--font-reading);
+        font-size: clamp(30px, 4vw, 48px);
+        font-weight: 400;
+        line-height: 1.02;
+        letter-spacing: 0;
+      }
+
+      .answer-box {
+        margin: 0;
+        padding: clamp(22px, 3vw, 34px);
+        border-radius: 8px;
+        background: var(--leaf-soft);
+        color: #24321f;
+        font-size: clamp(21px, 2.2vw, 30px);
+        line-height: 1.28;
+      }
+
+      .section {
+        padding: clamp(46px, 7vw, 78px) 0 0;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 24px;
+      }
+
+      .tile {
+        min-height: 210px;
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #f7f2e9;
+      }
+
+      .tile:nth-child(2) {
+        background: var(--blue);
+      }
+
+      .tile:nth-child(3) {
+        background: var(--clay);
+      }
+
+      .tile:nth-child(4) {
+        background: var(--gold);
+      }
+
+      .tile span {
+        display: block;
+        margin-bottom: 32px;
+        color: var(--leaf);
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .tile h3 {
+        margin: 0 0 10px;
+        font-size: 19px;
+        line-height: 1.12;
+      }
+
+      .tile p {
+        margin: 0;
+        color: #5d584d;
+        font-size: 15px;
+        line-height: 1.45;
+      }
+
+      .split {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 18px;
+        margin-top: 24px;
+      }
+
+      .panel {
+        padding: clamp(22px, 3vw, 34px);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #f7f2e9;
+      }
+
+      .panel h3 {
+        margin: 0 0 18px;
+        font-family: var(--font-reading);
+        font-size: 28px;
+        font-weight: 400;
+        line-height: 1.08;
+      }
+
+      ul {
+        display: grid;
+        gap: 12px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      li {
+        display: grid;
+        grid-template-columns: 9px 1fr;
+        gap: 12px;
+        color: var(--muted);
+        font-size: 16px;
+        line-height: 1.45;
+      }
+
+      li::before {
+        content: "";
+        width: 9px;
+        height: 9px;
+        margin-top: 8px;
+        border-radius: 50%;
+        background: var(--leaf);
+      }
+
+      .stack {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin-top: 24px;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 180px minmax(0, 1fr);
+        gap: 20px;
+        padding: 18px 0;
+        border-top: 1px solid var(--line);
+      }
+
+      .row:last-child {
+        border-bottom: 1px solid var(--line);
+      }
+
+      .row strong {
+        color: var(--ink);
+        font-size: 15px;
+      }
+
+      .row p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 16px;
+        line-height: 1.45;
+      }
+
+      .footer {
+        margin-top: clamp(48px, 7vw, 82px);
+        padding-top: 24px;
+        border-top: 1px solid var(--line);
+        color: var(--quiet);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      @media (max-width: 860px) {
+        .hero,
+        .plain-answer,
+        .split {
+          grid-template-columns: 1fr;
+        }
+
+        .hero {
+          align-items: start;
+        }
+
+        .grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 620px) {
+        .page {
+          width: calc(100vw - 24px);
+          max-width: calc(100vw - 24px);
+          padding-top: 16px;
+          overflow-x: hidden;
+        }
+
+        h1 {
+          max-width: 340px;
+          font-size: clamp(40px, 11vw, 44px);
+          line-height: 1;
+        }
+
+        .lead {
+          max-width: 340px;
+          font-size: 22px;
+        }
+
+        .answer-box {
+          max-width: 340px;
+          font-size: 21px;
+        }
+
+        .masthead {
+          grid-template-columns: 1fr;
+          gap: 8px;
+        }
+
+        .grid,
+        .row {
+          grid-template-columns: 1fr;
+        }
+
+        .tile {
+          min-height: auto;
+        }
+
+        .tile span {
+          margin-bottom: 18px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <header class="masthead">
+        <div class="brand">
+          <img src="../public/icons/rill-icon-64.png" alt="">
+          <strong>rill</strong>
+        </div>
+        <p class="note">The plain-English cover page for this repo.</p>
+      </header>
+
+      <section class="hero" aria-labelledby="title">
+        <div>
+          <p class="eyebrow">Chosen sources, finite reading</p>
+          <h1 id="title">The web without the feed machine.</h1>
+          <p class="lead">Rill is a small personal reader for blogs, newsletters, and publications you choose yourself. It brings new posts into one quiet place and stops there.</p>
+        </div>
+        <figure class="cover">
+          <img src="assets/rill-github-repo-cover-page.png" alt="Rill cover showing a quiet personal feed reader for chosen sources">
+        </figure>
+      </section>
+
+      <section class="plain-answer" aria-labelledby="simple-answer">
+        <h2 id="simple-answer">Stupid simple version</h2>
+        <p class="answer-box">Rill lets you subscribe to RSS, Atom, and JSON feeds, then read the newest posts in order. No ranking. No recommendations. No infinite scroll. You read what arrived, save what matters, search locally, and leave.</p>
+      </section>
+
+      <section class="section" aria-labelledby="daily-use">
+        <h2 id="daily-use">What you do with it</h2>
+        <div class="grid">
+          <article class="tile">
+            <span>01</span>
+            <h3>Add sources</h3>
+            <p>Paste a site or feed URL. Rill finds RSS, Atom, or JSON Feed when the site exposes one.</p>
+          </article>
+          <article class="tile">
+            <span>02</span>
+            <h3>Open Today</h3>
+            <p>See what arrived since your last visit. The list has an end, so reading can be done.</p>
+          </article>
+          <article class="tile">
+            <span>03</span>
+            <h3>Read cleanly</h3>
+            <p>Open one article at a time in a quiet reader. Mark it read, archive it, or save it for later.</p>
+          </article>
+          <article class="tile">
+            <span>04</span>
+            <h3>Keep control</h3>
+            <p>Search your local copy, manage subscriptions, and import or export OPML so the list stays yours.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="privacy">
+        <h2 id="privacy">Why it is private by design</h2>
+        <div class="split">
+          <article class="panel">
+            <h3>What stays on your device</h3>
+            <ul>
+              <li>Your reading state lives in IndexedDB in the browser.</li>
+              <li>Search is local full-text search, not a server query.</li>
+              <li>Offline changes queue locally, then sync when the app can reach the Worker.</li>
+            </ul>
+          </article>
+          <article class="panel">
+            <h3>What the server does</h3>
+            <ul>
+              <li>A Cloudflare Worker fetches feeds and serves the API.</li>
+              <li>D1 stores feed and entry state so refreshes can dedupe cleanly.</li>
+              <li>Queues and Cron refresh feeds on a schedule with conditional HTTP.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="refusals">
+        <h2 id="refusals">What it refuses to become</h2>
+        <div class="stack">
+          <div class="row">
+            <strong>No algorithmic layer</strong>
+            <p>Rill does not rank, recommend, cluster, summarize, or try to keep you around.</p>
+          </div>
+          <div class="row">
+            <strong>No surveillance feel</strong>
+            <p>No analytics SDKs, no third-party scripts, no external fonts, and a privacy lint pass that checks the built output.</p>
+          </div>
+          <div class="row">
+            <strong>No fake media</strong>
+            <p>Remote images are hidden by default. If you load one, it goes through the server-side image proxy.</p>
+          </div>
+          <div class="row">
+            <strong>No lock-in</strong>
+            <p>Your subscriptions can move with you through OPML import and export.</p>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer">
+        Built from this repo's README, docs, and package scripts. The project shape is simple: a local-first React PWA, a Cloudflare Worker, D1, Queues, Cron, and strict privacy checks.
+      </footer>
+    </main>
+  </body>
+</html>
