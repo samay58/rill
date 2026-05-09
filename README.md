@@ -4,6 +4,10 @@
   <img src="docs/assets/rill-github-repo-cover-page.png" alt="Rill cover: a quiet personal feed reader for chosen sources" width="100%">
 </p>
 
+<p align="center">
+  <a href="docs/index.html">Open the plain-English cover page</a>
+</p>
+
 I built Rill because I wanted to read the web again.
 
 Not the algorithmic web: the one that learns what keeps you anxious and gives you more of it. The actual web: the blogs, newsletters, and small publications that people write because they have something to say. The kind of writing that used to flow through RSS readers before RSS became unfashionable and everyone migrated somewhere worse.
@@ -23,14 +27,14 @@ Rill reads RSS, Atom, and JSON Feed sources. It shows you what those sources pub
 
 Rill is a Progressive Web App backed by a Cloudflare Worker. Reading state lives in IndexedDB on your device. The Worker handles feed fetching and sync, not your reading habits.
 
-- **TypeScript** — the whole thing.
-- **Vite + React** — PWA with full offline shell.
-- **Cloudflare Workers** — the API, running at the edge.
-- **D1** — SQLite for server-side feed and entry state.
-- **Queues + Cron Triggers** — feed refresh on a schedule, with conditional HTTP, fanout, and deduplication.
-- **IndexedDB via `idb`** — client store and offline mutation queue.
-- **Vitest + Playwright** — automated tests, including a network check that fails if any third-party scripts load.
-- **Hand-rolled UI** — system fonts, Georgia for the reader, nothing imported that phones home.
+- **TypeScript:** the whole thing.
+- **Vite + React:** PWA with full offline shell.
+- **Cloudflare Workers:** the API, running at the edge.
+- **D1:** SQLite for server-side feed and entry state.
+- **Queues + Cron Triggers:** feed refresh on a schedule, with conditional HTTP, fanout, and deduplication.
+- **IndexedDB via `idb`:** client store and offline mutation queue.
+- **Vitest + Playwright:** automated tests, including a network check that fails if any third-party scripts load.
+- **Hand-rolled UI:** system fonts, Georgia for the reader, nothing imported that phones home.
 
 Privacy is enforced structurally, not just by convention. A lint pass scans the compiled output at build time. Remote images are hidden by default and load only through a server-side proxy. The CSP is same-origin. Rill should be invisible from a network traffic perspective.
 
