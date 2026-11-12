@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppView } from './design';
 import { extractEntryContent, importOpml, patchSubscription as patchRemoteSubscription, refreshAllSubscriptions, refreshSubscription, removeSubscription } from './api';
 import { type LocalStore, openRillLocalStore } from './db';
@@ -248,6 +248,19 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
       })
       .catch(() => undefined);
   }
+
+  // Workbench links to rill/#edition: open the newest Morning Edition once entries load.
+  const editionHashHandled = useRef(false);
+  useEffect(() => {
+    if (editionHashHandled.current || !isUnlocked || typeof window === 'undefined') return;
+    if (window.location.hash !== '#edition') return;
+    const editions = entries.filter((entry) => entry.feed_id.endsWith('/edition'));
+    if (editions.length === 0) return;
+    editionHashHandled.current = true;
+    const newest = editions.reduce((best, entry) => ((entry.published_at ?? 0) > (best.published_at ?? 0) ? entry : best));
+    window.history.replaceState(null, '', window.location.pathname);
+    openEntry(newest.id);
+  }, [entries, isUnlocked]);
 
   function openEntry(entryId: string) {
     updateEntry(entryId, (entry, now) => ({

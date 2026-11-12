@@ -21,8 +21,15 @@ export function entryId(feedId: string, stableExternalId: string): string {
   return `entry:${feedId}:${stableExternalId}`;
 }
 
+// YouTube channel feeds mix full videos with Shorts. Shorts are skipped so a channel
+// feed carries the long-form work only.
+export function isYouTubeShort(url: string | null): boolean {
+  return !!url && /^https?:\/\/(www\.|m\.)?youtube\.com\/shorts\//i.test(url);
+}
+
 export async function storeParsedFeedEntries(env: Env, feedId: string, parsed: ReturnType<typeof parseFeed>, fetchedAt: number): Promise<number> {
-  for (const entry of parsed.entries) {
+  const kept = parsed.entries.filter((entry) => !isYouTubeShort(entry.canonical_url));
+  for (const entry of kept) {
     await upsertEntry(env.DB, {
       id: entryId(feedId, entry.stable_external_id),
       feed_id: feedId,
@@ -42,7 +49,7 @@ export async function storeParsedFeedEntries(env: Env, feedId: string, parsed: R
       updated_at: fetchedAt
     });
   }
-  return parsed.entries.length;
+  return kept.length;
 }
 
 function nextPoll(now: number, status: FetchRunStatus): number {

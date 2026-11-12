@@ -5,6 +5,7 @@ import { consumeRefreshMessage, enqueueDueFeeds, handleRefreshRoute } from './ro
 import { handleEntriesRoute } from './routes/entries';
 import { handleImageRoute } from './routes/images';
 import { handleOpmlRoute } from './routes/opml';
+import { handleIngestRoute } from './routes/ingest';
 
 const securityHeaders = {
   'content-security-policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'",
@@ -26,6 +27,8 @@ export default {
     const url = new URL(request.url);
     const authResponse = await handleAuthRoute(request, env);
     if (authResponse) return withSecurityHeaders(authResponse);
+    const ingestResponse = await handleIngestRoute(request, env);
+    if (ingestResponse) return withSecurityHeaders(ingestResponse);
     const subscriptionsResponse = await handleSubscriptionsRoute(request, env);
     if (subscriptionsResponse) return withSecurityHeaders(subscriptionsResponse);
     const refreshResponse = await handleRefreshRoute(request, env);
