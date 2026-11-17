@@ -125,15 +125,77 @@ describe('Today and Reader', () => {
     expect(host.textContent).toContain('Caught up for now');
   });
 
-  it('opens Reader and marks the entry read before returning to Today', () => {
+  it('opens Reader, marks the entry read, and keeps it in place on Today for the rest of the day', () => {
     const host = render(<App initialUnlocked initialEntries={[entry('one', { title: 'The quiet loop' })]} clock={() => 1000} />);
 
     click('[data-entry-id="one"] .entry-open-button');
     expect(host.querySelector('.reader-article h1')?.textContent).toBe('The quiet loop');
     click('[data-action="back-to-today"]');
 
+    expect(host.textContent).toContain('The quiet loop');
+    expect(host.querySelector('[data-entry-id="one"]')?.getAttribute('data-state')).toBe('read');
     expect(host.textContent).toContain('Caught up for now');
-    expect(host.textContent).not.toContain('The quiet loop');
+  });
+
+  it('drops entries read before today but keeps those read today', () => {
+    const now = Date.parse('2026-11-16T15:00:00');
+    const host = render(<TodayView now={now} onOpenEntry={() => undefined} entries={[
+      entry('read-today', { read_at: Date.parse('2026-11-16T08:00:00') }),
+      entry('read-yesterday', { read_at: Date.parse('2026-11-15T22:00:00') }),
+      entry('unread')
+    ]} />);
+
+    expect(host.querySelector('[data-entry-id="read-today"]')).not.toBeNull();
+    expect(host.querySelector('[data-entry-id="read-yesterday"]')).toBeNull();
+    expect(host.querySelector('[data-entry-id="unread"]')).not.toBeNull();
+  });
+
+  it('pins the newest Morning Edition above newer posts, read or not, until it is two days old', () => {
+    const now = Date.parse('2026-11-16T15:00:00');
+    const edition = (id: string, published: string, overrides: Partial<ReadingEntry> = {}) => entry(id, {
+      feed_id: 'https://rill.example/edition', source_title: 'Morning Edition', title: `Edition ${id}`, published_at: Date.parse(published), ...overrides
+    });
+    const entries = [
+      entry('fresh', { published_at: Date.parse('2026-11-16T14:00:00') }),
+      edition('mon', '2026-11-16T06:45:00', { read_at: Date.parse('2026-11-16T07:00:00') }),
+      edition('sun', '2026-11-15T06:45:00')
+    ];
+    const host = render(<TodayView now={now} onOpenEntry={() => undefined} entries={entries} />);
+
+    const pinned = host.querySelector('.edition-pin [data-entry-id]');
+    expect(pinned?.getAttribute('data-entry-id')).toBe('mon');
+    expect(pinned?.getAttribute('data-state')).toBe('read');
+    expect(host.querySelectorAll('[data-entry-id="mon"]')).toHaveLength(1);
+
+    if (root) act(() => root!.unmount());
+    container?.remove();
+    const stale = render(<TodayView now={Date.parse('2026-11-19T15:00:00')} onOpenEntry={() => undefined} entries={entries} />);
+    expect(stale.querySelector('.edition-pin')).toBeNull();
+  });
+
+  it('gives Reader a history entry so the browser Back returns to the list', () => {
+    const host = render(<App initialUnlocked initialEntries={[entry('one', { title: 'History stays put' })]} clock={() => 1000} />);
+
+    click('[data-entry-id="one"] .entry-open-button');
+    expect(window.location.hash).toBe('#read/one');
+    expect(window.history.state?.rillReader).toBe('one');
+
+    act(() => {
+      window.history.replaceState(null, '', window.location.pathname);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    expect(host.querySelector('.reader-article')).toBeNull();
+    expect(host.querySelector('[data-entry-id="one"]')).not.toBeNull();
+  });
+
+  it('labels the back control with the view Reader was opened from', () => {
+    const host = render(<App initialUnlocked initialEntries={[entry('one', { title: 'Kept for later', saved_at: 5 })]} clock={() => 1000} />);
+
+    click('.side-nav-item[aria-label="Saved"]');
+    click('[data-entry-id="one"] .entry-open-button, .saved-list button, [data-entry-id="one"] button');
+    expect(host.querySelector('[data-action="back-to-today"]')?.textContent).toContain('Saved');
+    click('[data-action="back-to-today"]');
+    expect(host.querySelector('.side-nav-item.is-active')?.getAttribute('aria-label')).toBe('Saved');
   });
 
   it('saves, marks unread, and archives from Reader with final state semantics', () => {

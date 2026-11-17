@@ -5,6 +5,7 @@ import { canLoadFullArticle } from './readerContent';
 interface ReaderViewProps {
   entry: ReadingEntry;
   onBack: () => void;
+  backLabel?: string;
   onSave: (entryId: string) => void;
   onArchive: (entryId: string) => void;
   onMarkUnread: (entryId: string) => void;
@@ -58,7 +59,7 @@ function textParagraphs(text: string | null): string[] {
   return (text ?? '').split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean);
 }
 
-export function ReaderView({ entry, onBack, onSave, onArchive, onMarkUnread, onLoadFullArticle, isLoadingFullArticle = false, fullArticleError }: ReaderViewProps) {
+export function ReaderView({ entry, onBack, backLabel = 'Today', onSave, onArchive, onMarkUnread, onLoadFullArticle, isLoadingFullArticle = false, fullArticleError }: ReaderViewProps) {
   const [imagesLoaded, setImagesLoaded] = useState(false);
   const hiddenImages = Math.max(remoteImageCount(entry.content_html_sanitized), entry.has_remote_images ? 1 : 0);
   const canExtractArticle = canLoadFullArticle(entry);
@@ -71,13 +72,13 @@ export function ReaderView({ entry, onBack, onSave, onArchive, onMarkUnread, onL
   return (
     <section className="reader-surface" aria-labelledby="reader-title">
       <header className="reader-topbar">
-        <button type="button" className="reader-back" data-action="back-to-today" onClick={onBack}>{'< Today'}</button>
+        <button type="button" className="reader-back" data-action="back-to-today" onClick={onBack}><span aria-hidden="true">‹ </span>{backLabel}</button>
         <div className="reader-toolbar" aria-label="Entry actions">
-          <button type="button" className="reader-save" data-action="save-entry" onClick={() => onSave(entry.id)}>{entry.saved_at ? 'Saved' : 'Save for later'}</button>
+          <button type="button" className="reader-save" data-action="save-entry" onClick={() => onSave(entry.id)}>{entry.saved_at ? 'Saved' : <>Save<span className="wide-only"> for later</span></>}</button>
           <button type="button" data-action="archive-entry" onClick={() => onArchive(entry.id)}>Archive</button>
           <button type="button" data-action="mark-unread" onClick={() => onMarkUnread(entry.id)}>Mark unread</button>
           <span aria-hidden="true" />
-          {entry.canonical_url ? <a data-action="open-original" href={entry.canonical_url} target="_blank" rel="noreferrer">Open Original ↗</a> : null}
+          {entry.canonical_url ? <a data-action="open-original" href={entry.canonical_url} target="_blank" rel="noreferrer"><span className="wide-only">Open </span>Original<span aria-hidden="true">{"\u00a0↗"}</span></a> : null}
         </div>
       </header>
       <article className="reader-article">

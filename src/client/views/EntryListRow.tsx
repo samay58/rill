@@ -1,5 +1,6 @@
 import type { EntryWithState } from '../../shared/types';
 import { entryExcerpt } from './entryExcerpt';
+import { relativeTime } from './readingDay';
 
 export type ReadingEntry = EntryWithState;
 
@@ -11,30 +12,30 @@ function SavedStar() {
   );
 }
 
-function displayTime(entry: ReadingEntry): string {
-  const timestamp = entry.published_at ?? entry.created_at;
-  if (!timestamp) return 'Today';
-  const hours = Math.max(1, Math.round((Date.now() - timestamp) / (60 * 60 * 1000)));
-  if (hours < 24) return `${hours}h`;
-  return 'Yesterday';
-}
-
 interface EntryListRowProps {
   entry: ReadingEntry;
   onOpenEntry: (entryId: string) => void;
+  now?: number;
+  edition?: boolean;
 }
 
-export function EntryListRow({ entry, onOpenEntry }: EntryListRowProps) {
+export function EntryListRow({ entry, onOpenEntry, now = Date.now(), edition = false }: EntryListRowProps) {
   const isRead = entry.read_at !== null;
-  const excerpt = entryExcerpt(entry);
+  // The edition's body is a whole front page; its first lines are a masthead, not a preview worth printing.
+  const excerpt = edition ? null : entryExcerpt(entry);
   return (
-    <article className={`entry-row ${isRead ? 'is-read' : 'is-unread'}`} data-entry-id={entry.id} data-state={isRead ? 'read' : 'unread'}>
+    <article
+      className={`entry-row ${isRead ? 'is-read' : 'is-unread'}${edition ? ' is-edition' : ''}`}
+      data-entry-id={entry.id}
+      data-state={isRead ? 'read' : 'unread'}
+    >
       <span className="entry-dot" aria-hidden="true" />
       <button type="button" className="entry-open-button" onClick={() => onOpenEntry(entry.id)}>
         <div className="entry-body">
           <div className="entry-meta">
             <span>{entry.source_title ?? 'Unknown Source'}</span>
-            <span>{displayTime(entry)}</span>
+            <span>{relativeTime(entry.published_at ?? entry.created_at, now)}</span>
+            {isRead ? <span className="visually-hidden">Read</span> : null}
             {entry.saved_at ? <SavedStar /> : null}
           </div>
           <h2>{entry.title ?? 'Untitled'}</h2>

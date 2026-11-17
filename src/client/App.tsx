@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AppView } from './design';
 import { extractEntryContent, importOpml, patchSubscription as patchRemoteSubscription, refreshAllSubscriptions, refreshSubscription, removeSubscription } from './api';
 import { type LocalStore, openRillLocalStore } from './db';
@@ -11,6 +11,7 @@ import { Shell } from './views/Shell';
 import { SourcesView, type SourceViewModel } from './views/SourcesView';
 import { ReadingEntry, TodayView } from './views/TodayView';
 import { UnlockView } from './views/UnlockView';
+import { isEdition } from './views/readingDay';
 import { SearchView } from './views/SearchView';
 
 type AppRoute = AppView | `reader:${string}`;
@@ -23,8 +24,16 @@ interface AppProps {
   syncApi?: RillSyncApi;
 }
 
-function routeToView(route: AppRoute): AppView {
-  return route.startsWith('reader:') ? 'today' : route as AppView;
+function routeToView(route: AppRoute, readerFrom: AppView = 'today'): AppView {
+  return route.startsWith('reader:') ? readerFrom : route as AppView;
+}
+
+const READER_HASH = '#read/';
+
+function readerHashId(): string | null {
+  if (typeof window === 'undefined') return null;
+  const hash = window.location.hash;
+  return hash.startsWith(READER_HASH) ? decodeURIComponent(hash.slice(READER_HASH.length)) : null;
 }
 
 function selectedEntryId(route: AppRoute): string | null {
@@ -108,6 +117,15 @@ function mergeExtractedEntry(current: ReadingEntry, extracted: ReadingEntry): Re
 export function App({ initialUnlocked = false, initialEntries = [], clock = () => Date.now(), localStore, syncApi = defaultSyncApi }: AppProps) {
   const [isUnlocked, setIsUnlocked] = useState(initialUnlocked);
   const [route, setRoute] = useState<AppRoute>('today');
+  // Where Reader was opened from, so Back returns there and the sidebar keeps that view lit.
+  const [readerFrom, setReaderFrom] = useState<AppView>('today');
+  // Scroll position per list view. The page itself scrolls, so without this a return from Reader landed at the
+  // top of Today, and Reader opened wherever the list had been scrolled to (Nov 16 2026).
+  const scrollMemory = useRef<Partial<Record<AppView, number>>>({});
+  const routeRef = useRef<AppRoute>('today');
+  routeRef.current = route;
+  const readerFromRef = useRef<AppView>('today');
+  readerFromRef.current = readerFrom;
   const [entries, setEntries] = useState<ReadingEntry[]>(initialEntries);
   const [feeds, setFeeds] = useState<Feed[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -254,13 +272,26 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
   useEffect(() => {
     if (editionHashHandled.current || !isUnlocked || typeof window === 'undefined') return;
     if (window.location.hash !== '#edition') return;
-    const editions = entries.filter((entry) => entry.feed_id.endsWith('/edition'));
+    const editions = entries.filter(isEdition);
     if (editions.length === 0) return;
     editionHashHandled.current = true;
     const newest = editions.reduce((best, entry) => ((entry.published_at ?? 0) > (best.published_at ?? 0) ? entry : best));
     window.history.replaceState(null, '', window.location.pathname);
     openEntry(newest.id);
   }, [entries, isUnlocked]);
+
+  function rememberScroll() {
+    const current = routeRef.current;
+    if (typeof window === 'undefined' || current.startsWith('reader:')) return;
+    scrollMemory.current[current as AppView] = window.scrollY;
+  }
+
+  function showReader(entryId: string) {
+    rememberScroll();
+    const current = routeRef.current;
+    if (!current.startsWith('reader:')) setReaderFrom(current as AppView);
+    setRoute(`reader:${entryId}`);
+  }
 
   function openEntry(entryId: string) {
     updateEntry(entryId, (entry, now) => ({
@@ -270,8 +301,73 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
       updated_at: now
     }));
     persistEntryPatch(entryId, { read: true });
-    setRoute(`reader:${entryId}`);
+    // Reader gets its own history entry, so the browser's Back (a swipe on the iPhone) returns to the list
+    // instead of leaving Rill.
+    if (typeof window !== 'undefined' && readerHashId() !== entryId) {
+      const hash = `${READER_HASH}${encodeURIComponent(entryId)}`;
+      if (readerHashId() === null) window.history.pushState({ rillReader: entryId }, '', hash);
+      else window.history.replaceState({ rillReader: entryId }, '', hash);
+    }
+    showReader(entryId);
   }
+
+  function navigate(view: AppView) {
+    rememberScroll();
+    // Leaving Reader by a tab drops its history entry, so a later Back does not reopen the article.
+    if (typeof window !== 'undefined' && readerHashId() !== null) window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    setRoute(view);
+  }
+
+  function closeReader() {
+    const from = readerFrom;
+    if (typeof window !== 'undefined' && readerHashId() !== null) {
+      if (window.history.state?.rillReader) window.history.back();
+      else window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+    setRoute(from);
+  }
+
+  // Browser Back and Forward move between the list and Reader.
+  useEffect(() => {
+    if (!isUnlocked || typeof window === 'undefined') return;
+    function onPopState() {
+      const entryId = readerHashId();
+      if (entryId) {
+        if (routeRef.current !== `reader:${entryId}`) showReader(entryId);
+      } else if (routeRef.current.startsWith('reader:')) {
+        setRoute((current) => (current.startsWith('reader:') ? readerFromRef.current : current));
+      }
+    }
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [isUnlocked]);
+  // A link or reload on #read/<id> opens that entry once it is loaded, with the list one Back away.
+  const readerHashHandled = useRef(false);
+  useEffect(() => {
+    if (readerHashHandled.current || !isUnlocked || typeof window === 'undefined') return;
+    const entryId = readerHashId();
+    if (!entryId) { readerHashHandled.current = true; return; }
+    if (!entries.some((entry) => entry.id === entryId)) return;
+    readerHashHandled.current = true;
+    const path = window.location.pathname + window.location.search;
+    window.history.replaceState(null, '', path);
+    window.history.pushState({ rillReader: entryId }, '', `${READER_HASH}${encodeURIComponent(entryId)}`);
+    showReader(entryId);
+  }, [entries, isUnlocked]);
+
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined' || typeof window.scrollTo !== 'function') return;
+    try {
+      if (route.startsWith('reader:')) window.scrollTo(0, 0);
+      else window.scrollTo(0, scrollMemory.current[route as AppView] ?? 0);
+    } catch {
+      // jsdom has no scrolling
+    }
+  }, [route]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
+  }, []);
 
   async function loadFullArticle(entryId: string) {
     setExtractionErrors((current) => {
@@ -313,18 +409,18 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
 
   const selectedId = selectedEntryId(route);
   const selectedEntry = selectedId ? entries.find((entry) => entry.id === selectedId) ?? null : null;
-  const activeView = routeToView(route);
+  const activeView = routeToView(route, readerFrom);
   const unreadCount = entries.filter((entry) => entry.read_at === null && entry.archived_at === null).length;
 
   return (
-    <Shell activeView={activeView} unreadCount={unreadCount} onNavigate={setRoute}>
-      {route === 'today' ? <TodayView entries={entries} onOpenEntry={openEntry} onSearch={() => setRoute('search')} onRefresh={refreshEverything} isRefreshing={isRefreshingAll} /> : null}
+    <Shell activeView={activeView} unreadCount={unreadCount} onNavigate={navigate}>
+      {route === 'today' ? <TodayView entries={entries} onOpenEntry={openEntry} onSearch={() => navigate('search')} onRefresh={refreshEverything} isRefreshing={isRefreshingAll} now={clock()} /> : null}
       {route === 'saved' ? <SavedView entries={entries} onOpenEntry={openEntry} /> : null}
       {route === 'search' ? <SearchView entries={entries} onOpenEntry={openEntry} /> : null}
       {route === 'sources' ? (
         <SourcesView
           sources={sourceRows(feeds, subscriptions, entries, refreshingSourceIds)}
-          onAddSource={() => setRoute('add-source')}
+          onAddSource={() => navigate('add-source')}
           onRefreshSource={(subscriptionId) => { void refreshOneSource(subscriptionId).catch(() => undefined); }}
           onArchiveSource={(subscriptionId, archived) => {
             setSubscriptions((current) => current.map((subscription) => subscription.id === subscriptionId ? { ...subscription, is_archived: archived ? 1 : 0, updated_at: clock() } : subscription));
@@ -343,7 +439,8 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
       {selectedEntry ? (
         <ReaderView
           entry={selectedEntry}
-          onBack={() => setRoute('today')}
+          backLabel={readerFrom === 'saved' ? 'Saved' : readerFrom === 'search' ? 'Search' : 'Today'}
+          onBack={closeReader}
           onSave={(entryId) => {
             updateEntry(entryId, (entry, now) => ({ ...entry, saved_at: entry.saved_at ?? now, updated_at: now }));
             persistEntryPatch(entryId, { saved: true });
@@ -351,7 +448,7 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
           onArchive={(entryId) => {
             updateEntry(entryId, (entry, now) => ({ ...entry, archived_at: now, updated_at: now }));
             persistEntryPatch(entryId, { archived: true });
-            setRoute('today');
+            closeReader();
           }}
           onMarkUnread={(entryId) => {
             updateEntry(entryId, (entry, now) => ({ ...entry, read_at: null, updated_at: now }));

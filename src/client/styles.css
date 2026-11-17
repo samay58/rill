@@ -48,6 +48,21 @@ button {
   cursor: pointer;
 }
 
+button,
+a,
+input {
+  touch-action: manipulation;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
@@ -270,6 +285,20 @@ svg {
   color: var(--color-text-faint);
 }
 
+/* The day's front page, held above the stream until the next one arrives (TodayView pinnedEdition). */
+.edition-pin {
+  margin: 0 0 34px;
+}
+
+.edition-pin .entry-row {
+  padding-top: 0;
+}
+
+.edition-pin .entry-row h2 {
+  font-size: 19px;
+  line-height: 26px;
+}
+
 .entry-row {
   display: grid;
   grid-template-columns: 6px minmax(0, 1fr);
@@ -340,6 +369,12 @@ svg {
 }
 
 .reader-back {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  min-height: 44px;
+  margin-left: -8px;
+  padding: 0 8px;
+  border-radius: 6px;
   color: var(--color-text-muted);
   font-size: 13px;
 }
@@ -368,9 +403,10 @@ svg {
   background: var(--color-divider);
 }
 
-.reader-save {
+.reader-toolbar .reader-save {
+  position: relative;
   flex: 0 0 auto;
-  min-height: 28px;
+  min-height: 30px;
   border-radius: 999px;
   padding: 7px 16px;
   color: var(--color-accent);
@@ -983,6 +1019,11 @@ svg {
     line-height: 21px;
   }
 
+  .edition-pin .entry-row h2 {
+    font-size: 17px;
+    line-height: 24px;
+  }
+
   .entry-excerpt {
     font-size: 12px;
     line-height: 18px;
@@ -1021,19 +1062,39 @@ svg {
 
   .reader-topbar {
     min-height: auto;
-    align-items: flex-start;
-    padding: 20px 20px 0;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
   }
 
   .reader-toolbar {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: flex-end;
-    gap: 10px;
+    gap: 14px;
+    white-space: nowrap;
+  }
+
+  .reader-toolbar > span,
+  .wide-only {
+    display: none;
+  }
+
+  /* The pill stays small; its hit area grows to 44px. */
+  .reader-toolbar .reader-save {
+    min-height: 30px;
+  }
+
+  .reader-toolbar .reader-save::after {
+    content: '';
+    position: absolute;
+    inset: -7px -4px;
   }
 
   .reader-toolbar button,
   .reader-toolbar a {
-    min-height: 36px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
   }
 
   .reader-article {
@@ -1068,7 +1129,7 @@ svg {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     min-height: 72px;
-    padding: 8px 10px 10px;
+    padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--color-border);
     background: var(--color-sidebar);
   }
