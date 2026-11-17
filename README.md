@@ -59,21 +59,13 @@ Post the raw token once to `/api/auth/unlock`. After that, Rill sets a signed ht
 
 ```bash
 npm run dev          # Frontend only
-npm run worker:dev   # Worker + built assets through Wrangler
-npm run typecheck
-npm test
-npm run build
-npm run lint:privacy
-npm run verify
+npm run worker:dev   # Build, then Worker + assets through Wrangler
+npm run verify       # Typecheck, tests, build, privacy lint
 npm run test:e2e
+npm run deploy       # Verify, apply D1 migrations, deploy the Worker
 ```
 
-Worker testing: build first, then run Wrangler directly.
-
-```bash
-npm run build
-npx wrangler dev
-```
+The Worker keeps two weeks of feed fetch runs and drops expired sessions on each 30-minute cron pass.
 
 ## What it will not do
 

@@ -1,6 +1,6 @@
 import { requireUser } from '../auth';
 import { fetchAndStoreFeed } from '../feedFetch';
-import { listDueFeedIds, listSubscriptions } from '../db';
+import { listDueFeedIds, listSubscriptions, pruneHousekeeping } from '../db';
 import type { Env } from '../env';
 import type { Clock } from '../../shared/time';
 import { systemClock } from '../../shared/time';
@@ -46,8 +46,9 @@ export async function handleRefreshRoute(request: Request, env: Env, clock: Cloc
 }
 
 export async function enqueueDueFeeds(env: Env, clock: Clock = systemClock): Promise<number> {
-  const feedIds = await listDueFeedIds(env.DB, clock());
-  await Promise.all(feedIds.map((feedId) => queueFeed(env, feedId)));
+  const now = clock();
+  const feedIds = await listDueFeedIds(env.DB, now);
+  await Promise.all([...feedIds.map((feedId) => queueFeed(env, feedId)), pruneHousekeeping(env.DB, now)]);
   return feedIds.length;
 }
 

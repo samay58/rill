@@ -94,4 +94,15 @@ describe('refresh routes', () => {
     expect(db.entries).toHaveLength(1);
     expect(db.entries[0]).toMatchObject({ feed_id: 'feed-from-queue', stable_external_id: 'queued-1', title: 'Queued item' });
   });
+
+  it('prunes fetch runs older than two weeks and expired sessions on each cron pass', async () => {
+    const db = new FakeRillD1();
+    const now = Date.parse('2026-11-17T12:00:00Z');
+    await enqueueDueFeeds({ DB: db.asD1(), REFRESH_QUEUE: new FakeQueue() as unknown as Queue, ASSETS: {} as Fetcher, SESSION_SECRET: 'secret' }, () => now);
+    const prunes = db.runs.filter((run) => run.sql.includes('DELETE FROM'));
+    expect(prunes.map((run) => [run.sql.match(/DELETE FROM (\w+)/)?.[1], run.args[0]])).toEqual([
+      ['feed_fetch_runs', now - 14 * 24 * 60 * 60 * 1000],
+      ['sessions', now]
+    ]);
+  });
 });

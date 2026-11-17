@@ -406,6 +406,15 @@ export async function patchEntryState(db: D1Database, userId: string, entryId: s
   return state;
 }
 
+// Nothing reads fetch runs back; they are a debugging trail. Kept two weeks, they no longer grow by ~1,600 rows a day
+// forever (40,184 rows and 43.8 MB of database by Nov 17 2026). Expired sessions go with them.
+export const FETCH_RUN_RETENTION_MS = 14 * 24 * 60 * 60 * 1000;
+
+export async function pruneHousekeeping(db: D1Database, now: UnixMs): Promise<void> {
+  await db.prepare('DELETE FROM feed_fetch_runs WHERE started_at < ?').bind(now - FETCH_RUN_RETENTION_MS).run();
+  await db.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(now).run();
+}
+
 export async function recordFetchRun(db: D1Database, run: NewFetchRun): Promise<void> {
   await db.prepare(`
     INSERT INTO feed_fetch_runs (id, feed_id, started_at, finished_at, status, http_status, bytes_received, error_code, error_detail)
