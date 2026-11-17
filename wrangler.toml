@@ -9,7 +9,7 @@ binding = "ASSETS"
 [[d1_databases]]
 binding = "DB"
 database_name = "rill"
-database_id = "local-rill-dev"
+database_id = "93b8c1ca-0119-406c-ad73-988241af263b"
 
 [[queues.producers]]
 binding = "REFRESH_QUEUE"
