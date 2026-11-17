@@ -15,11 +15,12 @@ function SavedStar() {
 interface EntryListRowProps {
   entry: ReadingEntry;
   onOpenEntry: (entryId: string) => void;
+  onToggleRead?: (entryId: string) => void;
   now?: number;
   edition?: boolean;
 }
 
-export function EntryListRow({ entry, onOpenEntry, now = Date.now(), edition = false }: EntryListRowProps) {
+export function EntryListRow({ entry, onOpenEntry, onToggleRead, now = Date.now(), edition = false }: EntryListRowProps) {
   const isRead = entry.read_at !== null;
   // The edition's body is a whole front page; its first lines are a masthead, not a preview worth printing.
   const excerpt = edition ? null : entryExcerpt(entry);
@@ -29,7 +30,12 @@ export function EntryListRow({ entry, onOpenEntry, now = Date.now(), edition = f
       data-entry-id={entry.id}
       data-state={isRead ? 'read' : 'unread'}
     >
-      <span className="entry-dot" aria-hidden="true" />
+      {onToggleRead ? (
+        // The dot is the read mark itself: a tap flips it without opening the entry.
+        <button type="button" className="entry-dot-button" aria-label={isRead ? `Mark unread: ${entry.title ?? 'Untitled'}` : `Mark read: ${entry.title ?? 'Untitled'}`} onClick={() => onToggleRead(entry.id)}>
+          <span className="entry-dot" aria-hidden="true" />
+        </button>
+      ) : <span className="entry-dot" aria-hidden="true" />}
       <button type="button" className="entry-open-button" onClick={() => onOpenEntry(entry.id)}>
         <div className="entry-body">
           <div className="entry-meta">

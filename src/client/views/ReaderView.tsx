@@ -55,6 +55,16 @@ function htmlWithProxiedImages(html: string, entryId: string): string {
   return parsed.querySelector('main')?.innerHTML ?? '';
 }
 
+function siteOf(url: string | null, bare = false): string {
+  if (!url) return '';
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, '');
+    return bare ? host : ` from ${host}`;
+  } catch {
+    return '';
+  }
+}
+
 function textParagraphs(text: string | null): string[] {
   return (text ?? '').split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean);
 }
@@ -85,18 +95,13 @@ export function ReaderView({ entry, onBack, backLabel = 'Today', onSave, onArchi
         <p className="reader-byline">{byline}</p>
         <h1 id="reader-title">{entry.title ?? 'Untitled'}</h1>
         {entry.saved_at ? <p className="reader-state-note">Saved to Saved</p> : null}
-        {canExtractArticle ? (
-          <div className="reader-extraction-banner">
-            <p>{fullArticleError ?? 'This feed only provided a short preview.'}</p>
-            <button
-              type="button"
-              data-action="load-full-article"
-              disabled={isLoadingFullArticle}
-              aria-busy={isLoadingFullArticle}
-              onClick={() => onLoadFullArticle?.(entry.id)}
-            >
-              {isLoadingFullArticle ? 'Loading article' : 'Load full article'}
-            </button>
+        {/* A teaser fetches the full piece by itself when opened (App.tsx); this line only reports progress or a refusal. */}
+        {canExtractArticle && (isLoadingFullArticle || fullArticleError) ? (
+          <div className="reader-extraction-banner" role="status" aria-busy={isLoadingFullArticle}>
+            <p>{isLoadingFullArticle ? `Fetching the full piece${siteOf(entry.canonical_url)}…` : `${siteOf(entry.canonical_url, true) || 'The site'} keeps the full piece on its own pages. Open the original to read it there.`}</p>
+            {!isLoadingFullArticle ? (
+              <button type="button" data-action="load-full-article" onClick={() => onLoadFullArticle?.(entry.id)}>Try again</button>
+            ) : null}
           </div>
         ) : null}
         {hiddenImages > 0 && !imagesLoaded ? (

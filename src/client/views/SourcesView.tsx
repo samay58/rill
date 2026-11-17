@@ -1,4 +1,4 @@
-import { ChangeEvent, useState } from 'react';
+import { ChangeEvent, useEffect, useState } from 'react';
 import { RefreshIcon } from './Shell';
 
 export interface SourceViewModel {
@@ -29,17 +29,38 @@ function statusClass(source: SourceViewModel): string {
   return 'source-row is-active';
 }
 
+// The site's name says which source it is; the full feed URL was noise on every row.
+function hostOf(url: string): string {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
+}
+
+function byName(left: SourceViewModel, right: SourceViewModel): number {
+  if (left.isArchived !== right.isArchived) return left.isArchived ? 1 : -1;
+  return left.title.localeCompare(right.title, undefined, { sensitivity: 'base' });
+}
+
 function updatedLabel(updatedAt: number): string {
   if (!updatedAt) return 'Never updated';
   const ageHours = Math.max(0, Math.round((Date.now() - updatedAt) / 3_600_000));
   if (ageHours === 0) return 'Updated just now';
-  if (ageHours === 1) return 'Updated 1h ago';
-  return `Updated ${ageHours}h ago`;
+  if (ageHours < 24) return `Updated ${ageHours}h ago`;
+  // Past a day, hours stop meaning anything ("Updated 498579h ago" for a source that never refreshed).
+  const days = Math.round(ageHours / 24);
+  if (days < 14) return `Updated ${days} day${days === 1 ? '' : 's'} ago`;
+  return `Updated ${new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(updatedAt))}`;
 }
 
 export function SourcesView({ sources = [], onAddSource, onRefreshSource, onArchiveSource, onRemoveSource, onRefreshAll, onImportOpml, isRefreshingAll = false }: SourcesViewProps) {
   const activeCount = sources.filter((source) => !source.isArchived).length;
   const [message, setMessage] = useState<string | null>(null);
+  // Remove deletes the subscription, so it takes a second tap within a few seconds; Archive is the reversible one.
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  useEffect(() => {
+    if (!confirmRemove) return;
+    const timer = window.setTimeout(() => setConfirmRemove(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [confirmRemove]);
+  const ordered = [...sources].sort(byName);
 
   async function handleImport(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0];
@@ -64,21 +85,31 @@ export function SourcesView({ sources = [], onAddSource, onRefreshSource, onArch
       </header>
       <div className="source-list" aria-label="Sources">
         {sources.length === 0 ? <p className="empty-copy">No sources yet. Add one feed to begin.</p> : null}
-        {sources.map((source) => (
+        {ordered.map((source) => (
           <article key={source.id} className={statusClass(source)} data-subscription-id={source.id} data-state={source.isArchived ? 'archived' : source.isRefreshing ? 'refreshing' : 'active'}>
             <span className="source-dot" aria-hidden="true" />
             <div className="source-body">
               <div className="source-title-line">
                 <h2>{source.title}</h2>
-                <span>{source.url}</span>
+                <span>{hostOf(source.siteUrl ?? source.url)}</span>
                 {source.isArchived ? <span className="archived-badge">archived</span> : null}
               </div>
-              <p>{source.isRefreshing ? 'Refreshing...' : `${updatedLabel(source.updatedAt)} · ${source.unreadCount} unread`}</p>
+              <p>{source.isRefreshing ? 'Refreshing…' : `${updatedLabel(source.updatedAt)} · ${source.unreadCount} unread`}</p>
             </div>
             <div className="source-actions">
               {!source.isArchived ? <button type="button" className="source-refresh" aria-label={`Refresh ${source.title}`} aria-busy={source.isRefreshing} disabled={source.isRefreshing} onClick={() => onRefreshSource?.(source.id)}><RefreshIcon /></button> : null}
               <button type="button" onClick={() => onArchiveSource?.(source.id, !source.isArchived)}>{source.isArchived ? 'Unarchive' : 'Archive'}</button>
-              <button type="button" onClick={() => onRemoveSource?.(source.id)}>Remove</button>
+              <button
+                type="button"
+                className={confirmRemove === source.id ? 'source-remove is-confirming' : 'source-remove'}
+                aria-label={confirmRemove === source.id ? `Confirm: remove ${source.title}` : `Remove ${source.title}`}
+                onClick={() => {
+                  if (confirmRemove === source.id) { setConfirmRemove(null); onRemoveSource?.(source.id); }
+                  else setConfirmRemove(source.id);
+                }}
+              >
+                {confirmRemove === source.id ? 'Remove for good' : 'Remove'}
+              </button>
             </div>
           </article>
         ))}

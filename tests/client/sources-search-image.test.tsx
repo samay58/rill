@@ -91,7 +91,7 @@ describe('Sources, Search, and image loading', () => {
     await click('button[aria-label="Sources"]');
 
     expect(container!.textContent).toContain('Notebook Letters');
-    expect(container!.textContent).toContain('https://example.com/feed.xml');
+    expect(container!.textContent).toContain('example.com'); // the domain, not the feed URL (Nov 16 2026)
     expect(container!.textContent).not.toContain('Daring Fireball');
   });
 
@@ -196,7 +196,7 @@ describe('Sources, Search, and image loading', () => {
     await click('button[aria-label="Refresh Notebook Letters"]');
 
     expect(container!.querySelector('[data-subscription-id="sub-1"]')?.getAttribute('data-state')).toBe('refreshing');
-    expect(container!.textContent).toContain('Refreshing...');
+    expect(container!.textContent).toContain('Refreshing…');
 
     await act(async () => {
       resolveRefresh?.();

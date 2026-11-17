@@ -12,7 +12,7 @@ function displayActiveView(view: AppView): AppView {
   return view === 'add-source' ? 'sources' : view;
 }
 
-function Icon({ name }: { name: 'grid' | 'bookmark' | 'clock' | 'search' | 'settings' | 'refresh' }) {
+function Icon({ name }: { name: 'grid' | 'bookmark' | 'feed' | 'search' | 'refresh' }) {
   if (name === 'grid') {
     return (
       <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -30,11 +30,12 @@ function Icon({ name }: { name: 'grid' | 'bookmark' | 'clock' | 'search' | 'sett
       </svg>
     );
   }
-  if (name === 'clock') {
+  if (name === 'feed') {
+    // Sources: the feed mark, a dot and two arcs. It was a clock, which said nothing about sources.
     return (
       <svg viewBox="0 0 16 16" aria-hidden="true">
-        <circle cx="8" cy="8" r="5.8" fill="none" stroke="currentColor" strokeWidth="1.5" />
-        <path d="M8 4.8v3.6l2.4 1.3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <circle cx="4" cy="12" r="1.5" />
+        <path d="M2.8 7.3a6 6 0 0 1 5.9 5.9M2.8 3a10.2 10.2 0 0 1 10.2 10.2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
     );
   }
@@ -54,12 +55,7 @@ function Icon({ name }: { name: 'grid' | 'bookmark' | 'clock' | 'search' | 'sett
       </svg>
     );
   }
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <circle cx="8" cy="8" r="1.4" />
-      <path d="M8 1.6v2M8 12.4v2M1.6 8h2M12.4 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M12.5 3.5l-1.4 1.4M4.9 11.1l-1.4 1.4" fill="none" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-    </svg>
-  );
+  return null;
 }
 
 function NavButton({ item, active, unreadCount, onNavigate }: { item: (typeof navItems)[number]; active: boolean; unreadCount: number; onNavigate: (view: AppView) => void }) {
@@ -94,9 +90,6 @@ export function Shell({ activeView, unreadCount, onNavigate, children }: ShellPr
             <NavButton key={item.view} item={item} active={active === item.view} unreadCount={unreadCount} onNavigate={onNavigate} />
           ))}
         </nav>
-        <button type="button" className="settings-button" aria-label="Settings">
-          <Icon name="settings" />
-        </button>
       </aside>
       <div className="notebook-content">{children}</div>
       <nav className="mobile-tabbar" aria-label="Rill mobile sections">

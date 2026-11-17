@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AppView } from './design';
 import { extractEntryContent, importOpml, patchSubscription as patchRemoteSubscription, refreshAllSubscriptions, refreshSubscription, removeSubscription } from './api';
-import { type LocalStore, openRillLocalStore } from './db';
+import { getMetaValue, type LocalStore, openRillLocalStore } from './db';
 import { defaultSyncApi, loadCachedState, queueEntryStateMutation, replayPendingMutations, syncSince, bootstrapFromServer, type CachedClientState, type RillSyncApi } from './sync';
-import type { Entry, EntryStatePatch, Feed, Subscription } from '../shared/types';
+import type { Entry, EntryStatePatch, EntryUserState, Feed, Subscription, UnixMs } from '../shared/types';
 import { AddSourceView } from './views/AddSourceView';
 import { ReaderView } from './views/ReaderView';
 import { SavedView } from './views/SavedView';
@@ -12,6 +12,7 @@ import { SourcesView, type SourceViewModel } from './views/SourcesView';
 import { ReadingEntry, TodayView } from './views/TodayView';
 import { UnlockView } from './views/UnlockView';
 import { isEdition } from './views/readingDay';
+import { canLoadFullArticle } from './views/readerContent';
 import { SearchView } from './views/SearchView';
 
 type AppRoute = AppView | `reader:${string}`;
@@ -57,6 +58,30 @@ function entriesFromCache(cache: CachedClientState): ReadingEntry[] {
         last_opened_at: state?.last_opened_at ?? null
       };
     });
+}
+
+// Coming back to Rill after this long fetches what arrived meanwhile, so the list is never stale on return.
+const CATCH_UP_AFTER_MS = 90 * 1000;
+// The cached list shows before the server answers only if this device reached the server lately. A phone left
+// unopened for weeks (or a session that may have ended) confirms with the server first, as every open used to.
+const TRUST_CACHE_FOR_MS = 14 * 24 * 60 * 60 * 1000;
+const LAST_OK_KEY = 'rill:last-server-ok';
+
+function lastServerOk(): number {
+  try { return Number(window.localStorage.getItem(LAST_OK_KEY)) || 0; } catch { return 0; }
+}
+
+function markServerOk() {
+  try { window.localStorage.setItem(LAST_OK_KEY, String(Date.now())); } catch { /* private mode: every open confirms first */ }
+}
+
+function withStates(entries: ReadingEntry[], states: EntryUserState[]): ReadingEntry[] {
+  const byEntry = new Map(states.map((state) => [state.entry_id, state]));
+  return entries.map((entry) => {
+    const state = byEntry.get(entry.id);
+    if (!state) return entry;
+    return { ...entry, read_at: state.read_at, saved_at: state.saved_at, archived_at: state.archived_at, last_opened_at: state.last_opened_at };
+  });
 }
 
 function isAuthFailure(error: unknown): boolean {
@@ -137,6 +162,9 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
   const [extractionErrors, setExtractionErrors] = useState<Record<string, string>>({});
   const shouldAutoSync = initialEntries.length === 0 || Boolean(localStore);
   const [isCheckingSession, setIsCheckingSession] = useState(!initialUnlocked && shouldAutoSync);
+  const lastSyncAt = useRef(0); // when the server last answered a sync, by `clock`
+  const catchingUp = useRef(false);
+  const cacheShown = useRef(false); // the device's own copy has been drawn once
 
   function applyCached(cache: CachedClientState) {
     setEntries(entriesFromCache(cache));
@@ -155,6 +183,9 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
     const store = runtimeStore ?? localStore ?? await openRillLocalStore();
     setRuntimeStore(store);
     applyCached(await bootstrapFromServer(store, syncApi));
+    lastSyncAt.current = clock();
+    cacheShown.current = true;
+    markServerOk();
     setIsUnlocked(true);
   }
 
@@ -194,10 +225,21 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
       if (cancelled) return;
       setRuntimeStore(store);
       const cached = await loadCachedState(store);
-      if (cached.userId) applyCached(cached);
+      if (cancelled) return;
+      // Open on what this device already holds and let the catch-up below talk to the server. Every cold open used to
+      // wait for the full 1.2 MB snapshot before drawing a row (Nov 16 2026: 1.5 s on wifi, seconds on a phone).
+      if (cached.userId && (cached.entries.length > 0 || cached.subscriptions.length > 0) && Date.now() - lastServerOk() < TRUST_CACHE_FOR_MS) {
+        cacheShown.current = true;
+        applyCached(cached);
+        setIsUnlocked(true);
+        setIsCheckingSession(false);
+        return;
+      }
       try {
         const serverCache = await bootstrapFromServer(store, syncApi);
         if (cancelled) return;
+        lastSyncAt.current = clock();
+        markServerOk();
         applyCached(serverCache);
         setIsUnlocked(true);
       } catch (error) {
@@ -219,31 +261,62 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
     };
   }, [isUnlocked, localStore, shouldAutoSync, syncApi]);
 
+  // Send queued read/save marks, then fetch only what changed since the last sync. Runs once after unlock and again
+  // whenever Rill comes back to the foreground after a while (an iPhone PWA resumes rather than reloads, so before Nov 16
+  // 2026 new stories waited for a manual refresh). A 401 means the session ended: show the unlock screen.
+  async function catchUp(store: LocalStore) {
+    if (catchingUp.current) return;
+    catchingUp.current = true;
+    try {
+      await replayPendingMutations(store, syncApi);
+      const cursor = await getMetaValue<UnixMs>(store, 'syncCursor');
+      const now = clock();
+      // A delta when there is a cursor; the full snapshot only for a first sync. Refresh still takes a full one.
+      if (!cursor) {
+        applyCached(await bootstrapFromServer(store, syncApi));
+      } else {
+        const payload = await syncSince(store, cursor, syncApi);
+        const changed = payload.entries.length + payload.entryState.length + payload.feeds.length + payload.subscriptions.length > 0;
+        if (changed) applyCached(await loadCachedState(store));
+      }
+      lastSyncAt.current = now;
+      markServerOk();
+    } catch (error) {
+      if (isAuthFailure(error)) setIsUnlocked(false);
+    } finally {
+      catchingUp.current = false;
+    }
+  }
+
   useEffect(() => {
     if (!isUnlocked || !shouldAutoSync) return;
     let cancelled = false;
-
-    function applyEffectCache(cache: CachedClientState) {
-      if (cancelled) return;
-      applyCached(cache);
-    }
-
-    async function load() {
-      const store = localStore ?? await openRillLocalStore();
+    let store: LocalStore | null = runtimeStore ?? localStore ?? null;
+    async function begin() {
+      store ??= await openRillLocalStore();
       if (cancelled) return;
       setRuntimeStore(store);
-      const cached = await loadCachedState(store);
-      applyEffectCache(cached);
-      await replayPendingMutations(store, syncApi);
-      const nextCache = cached.syncCursor === 0
-        ? await bootstrapFromServer(store, syncApi)
-        : (await syncSince(store, cached.syncCursor, syncApi), await loadCachedState(store));
-      applyEffectCache(nextCache);
+      // Draw what the device holds before any network, unless the session check above already did.
+      if (!cacheShown.current) {
+        const cached = await loadCachedState(store);
+        if (cancelled) return;
+        if (cached.userId || cached.entries.length > 0) applyCached(cached);
+        cacheShown.current = true;
+      }
+      // A first unlock has just taken the snapshot; it needs no second trip.
+      if (clock() - lastSyncAt.current > 15_000) await catchUp(store);
     }
-
-    void load().catch(() => undefined);
+    void begin().catch(() => undefined);
+    function onReturn() {
+      if (document.visibilityState !== 'visible' || !store) return;
+      if (clock() - lastSyncAt.current > CATCH_UP_AFTER_MS) void catchUp(store);
+    }
+    document.addEventListener('visibilitychange', onReturn);
+    window.addEventListener('online', onReturn);
     return () => {
       cancelled = true;
+      document.removeEventListener('visibilitychange', onReturn);
+      window.removeEventListener('online', onReturn);
     };
   }, [isUnlocked, localStore, shouldAutoSync, syncApi]);
 
@@ -257,13 +330,12 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
     const currentUserId = userId;
     if (!store || !currentUserId) return;
     const updated_at_client = clock();
+    // Only the read/saved/archived marks can change here, so only they are read back. Reloading the whole store after
+    // each tap parsed every cached article again.
     void queueEntryStateMutation(store, currentUserId, entryId, { ...patch, updated_at_client }, clock)
       .then(() => replayPendingMutations(store, syncApi))
-      .then(() => loadCachedState(store))
-      .then((cache) => {
-        setEntries(entriesFromCache(cache));
-        setUserId(cache.userId);
-      })
+      .then(() => store.getAll<EntryUserState>('entryState'))
+      .then((states) => setEntries((current) => withStates(current, states)))
       .catch(() => undefined);
   }
 
@@ -311,6 +383,14 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
     showReader(entryId);
   }
 
+  function toggleRead(entryId: string) {
+    const entry = entries.find((candidate) => candidate.id === entryId);
+    if (!entry) return;
+    const read = entry.read_at === null;
+    updateEntry(entryId, (current, now) => ({ ...current, read_at: read ? now : null, updated_at: now }));
+    persistEntryPatch(entryId, { read });
+  }
+
   function navigate(view: AppView) {
     rememberScroll();
     // Leaving Reader by a tab drops its history entry, so a later Back does not reopen the article.
@@ -318,6 +398,7 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
     setRoute(view);
   }
 
+  const closeReaderRef = useRef<() => void>(() => undefined);
   function closeReader() {
     const from = readerFrom;
     if (typeof window !== 'undefined' && readerHashId() !== null) {
@@ -326,6 +407,8 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
     }
     setRoute(from);
   }
+
+  closeReaderRef.current = closeReader;
 
   // Browser Back and Forward move between the list and Reader.
   useEffect(() => {
@@ -395,6 +478,51 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
     }
   }
 
+  // Keys for reading at the desk: j and k move through the list, Enter opens, Escape goes back, s saves,
+  // m flips read, o opens the original. Ignored while typing. Each acts on what is on screen, nothing else.
+  useEffect(() => {
+    if (!isUnlocked || typeof window === 'undefined') return;
+    function onKey(event: KeyboardEvent) {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target && (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) || target.isContentEditable)) return;
+      const reading = routeRef.current.startsWith('reader:');
+      const entryId = reading ? routeRef.current.slice('reader:'.length) : null;
+      if (reading) {
+        if (event.key === 'Escape' || event.key === 'u') { event.preventDefault(); closeReaderRef.current(); }
+        else if (event.key === 's' && entryId) { event.preventDefault(); document.querySelector<HTMLButtonElement>('[data-action="save-entry"]')?.click(); }
+        else if (event.key === 'm' && entryId) { event.preventDefault(); document.querySelector<HTMLButtonElement>('[data-action="mark-unread"]')?.click(); }
+        else if (event.key === 'o') { document.querySelector<HTMLAnchorElement>('[data-action="open-original"]')?.click(); }
+        return;
+      }
+      if (event.key !== 'j' && event.key !== 'k' && event.key !== 'm') return;
+      const rows = [...document.querySelectorAll<HTMLButtonElement>('.entry-open-button')];
+      if (rows.length === 0) return;
+      const at = rows.indexOf(document.activeElement as HTMLButtonElement);
+      if (event.key === 'm') {
+        if (at >= 0) { event.preventDefault(); rows[at].closest('.entry-row')?.querySelector<HTMLButtonElement>('.entry-dot-button')?.click(); }
+        return;
+      }
+      event.preventDefault();
+      const next = at < 0 ? 0 : Math.min(rows.length - 1, Math.max(0, at + (event.key === 'j' ? 1 : -1)));
+      rows[next].focus({ preventScroll: true });
+      rows[next].scrollIntoView({ block: 'nearest' });
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isUnlocked]);
+
+  // A teaser fetches its full article the moment it opens, once per visit, instead of waiting on a button.
+  const autoFetched = useRef<Set<string>>(new Set());
+  const openId = selectedEntryId(route);
+  useEffect(() => {
+    if (!openId || autoFetched.current.has(openId)) return;
+    const entry = entries.find((candidate) => candidate.id === openId);
+    if (!entry || !canLoadFullArticle(entry)) return;
+    autoFetched.current.add(openId);
+    void loadFullArticle(openId);
+  }, [openId, entries]);
+
   if (isCheckingSession) {
     return (
       <main className="unlock-shell" aria-label="Opening Rill">
@@ -414,7 +542,7 @@ export function App({ initialUnlocked = false, initialEntries = [], clock = () =
 
   return (
     <Shell activeView={activeView} unreadCount={unreadCount} onNavigate={navigate}>
-      {route === 'today' ? <TodayView entries={entries} onOpenEntry={openEntry} onSearch={() => navigate('search')} onRefresh={refreshEverything} isRefreshing={isRefreshingAll} now={clock()} /> : null}
+      {route === 'today' ? <TodayView entries={entries} onOpenEntry={openEntry} onToggleRead={toggleRead} onSearch={() => navigate('search')} onRefresh={refreshEverything} isRefreshing={isRefreshingAll} now={clock()} /> : null}
       {route === 'saved' ? <SavedView entries={entries} onOpenEntry={openEntry} /> : null}
       {route === 'search' ? <SearchView entries={entries} onOpenEntry={openEntry} /> : null}
       {route === 'sources' ? (

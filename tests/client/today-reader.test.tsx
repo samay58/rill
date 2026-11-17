@@ -108,14 +108,14 @@ function entryState(entryId: string, overrides: Partial<EntryUserState> = {}): E
 }
 
 describe('Today and Reader', () => {
-  it('renders a finite Today list of unread unarchived entries', () => {
+  it('lists every unread entry, so reading one never pulls another up from below', () => {
     const entries = Array.from({ length: 30 }, (_, index) => entry(`entry-${index}`, { published_at: 1000 + index }));
     const host = render(<TodayView entries={entries} onOpenEntry={() => undefined} />);
 
-    expect(host.querySelectorAll('.entry-row')).toHaveLength(25);
+    expect(host.querySelectorAll('.entry-row')).toHaveLength(30);
     expect(host.textContent).toContain('Caught up for now');
     expect(host.textContent).toContain('Entry entry-29');
-    expect(host.textContent).not.toContain('Entry entry-0');
+    expect(host.textContent).toContain('Entry entry-0');
   });
 
   it('shows a caught-up state when no unread entries remain', () => {
@@ -137,16 +137,18 @@ describe('Today and Reader', () => {
     expect(host.textContent).toContain('Caught up for now');
   });
 
-  it('drops entries read before today but keeps those read today', () => {
+  it('keeps what was read today or yesterday, and lets older reads go', () => {
     const now = Date.parse('2026-11-16T15:00:00');
     const host = render(<TodayView now={now} onOpenEntry={() => undefined} entries={[
       entry('read-today', { read_at: Date.parse('2026-11-16T08:00:00') }),
       entry('read-yesterday', { read_at: Date.parse('2026-11-15T22:00:00') }),
+      entry('read-last-week', { read_at: Date.parse('2026-11-09T22:00:00') }),
       entry('unread')
     ]} />);
 
     expect(host.querySelector('[data-entry-id="read-today"]')).not.toBeNull();
-    expect(host.querySelector('[data-entry-id="read-yesterday"]')).toBeNull();
+    expect(host.querySelector('[data-entry-id="read-yesterday"]')).not.toBeNull();
+    expect(host.querySelector('[data-entry-id="read-last-week"]')).toBeNull();
     expect(host.querySelector('[data-entry-id="unread"]')).not.toBeNull();
   });
 
@@ -256,7 +258,7 @@ describe('Today and Reader', () => {
     })]} />);
 
     click('[data-entry-id="teaser"] .entry-open-button');
-    await act(async () => host.querySelector<HTMLButtonElement>('[data-action="load-full-article"]')!.click());
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); }); // a teaser fetches its full article on open
 
     expect(host.textContent).toContain('Full body from the publisher.');
     expect(host.querySelector('[data-action="load-full-article"]')).toBeNull();
@@ -283,9 +285,10 @@ describe('Today and Reader', () => {
     })]} />);
 
     click('[data-entry-id="teaser"] .entry-open-button');
-    await act(async () => host.querySelector<HTMLButtonElement>('[data-action="load-full-article"]')!.click());
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); }); // a teaser fetches its full article on open
 
-    expect(host.textContent).toContain('Publisher blocked extraction.');
+    expect(host.textContent).toContain('example.com keeps the full piece on its own pages');
+    expect(host.querySelector('[data-action="load-full-article"]')?.textContent).toBe('Try again');
     expect(host.textContent).toContain('Teaser paragraph stays visible.');
     expect(host.querySelector<HTMLAnchorElement>('[data-action="open-original"]')?.href).toBe('https://example.com/original');
   });
@@ -312,7 +315,7 @@ describe('Today and Reader', () => {
     })]} />);
 
     click('[data-entry-id="image-teaser"] .entry-open-button');
-    await act(async () => host.querySelector<HTMLButtonElement>('[data-action="load-full-article"]')!.click());
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); }); // a teaser fetches its full article on open
 
     expect(host.textContent).toContain('Full publisher copy.');
     expect(host.textContent).toContain('1 remote image hidden');
@@ -362,7 +365,7 @@ describe('Today and Reader', () => {
     })]} clock={() => 5000} />);
 
     click('[data-entry-id="stateful-teaser"] .entry-open-button');
-    await act(async () => host.querySelector<HTMLButtonElement>('[data-action="load-full-article"]')!.click());
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); }); // a teaser fetches its full article on open
     click('[data-action="save-entry"]');
     expect(host.querySelector('[data-action="save-entry"]')?.textContent).toBe('Saved');
 
@@ -424,7 +427,7 @@ describe('Today and Reader', () => {
     />);
 
     click('[data-entry-id="cached-teaser"] .entry-open-button');
-    await act(async () => host.querySelector<HTMLButtonElement>('[data-action="load-full-article"]')!.click());
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); }); // a teaser fetches its full article on open
 
     const stored = await store.get<Record<string, unknown>>('entries', 'cached-teaser');
     expect(stored?.content_text).toContain('Full cached article.');

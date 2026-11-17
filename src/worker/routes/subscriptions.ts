@@ -137,6 +137,12 @@ async function createSubscriptionFromDiscoveredChoice(env: Env, userId: string, 
   return createSubscriptionFromFeed(env, userId, choice.url, await fetched.text(), fetched.headers.get('content-type') ?? '', discoveredFromUrl, now);
 }
 
+// The phone reads only the sanitized copy. Sending the raw feed HTML as well doubled every article in the sync
+// payload: 387 KB of 1.2 MB on Nov 16 2026. It stays in D1 for re-sanitizing.
+function forClient<T extends { content_html_raw: string | null }>(entries: T[]): T[] {
+  return entries.map((entry) => ({ ...entry, content_html_raw: null }));
+}
+
 export async function handleSubscriptionsRoute(request: Request, env: Env, clock: Clock = systemClock): Promise<Response | null> {
   const url = new URL(request.url);
   if (url.pathname === '/api/bootstrap' && request.method === 'GET') {
@@ -149,7 +155,7 @@ export async function handleSubscriptionsRoute(request: Request, env: Env, clock
       listEntriesForUser(env.DB, user.id),
       listEntryStateForUser(env.DB, user.id)
     ]);
-    return json({ ok: true, user, feeds, subscriptions, entries, entryState, serverTime, syncCursor: serverTime });
+    return json({ ok: true, user, feeds, subscriptions, entries: forClient(entries), entryState, serverTime, syncCursor: serverTime });
   }
   if (url.pathname === '/api/sync' && request.method === 'GET') {
     const user = await routeUser(request, env, clock);
@@ -163,7 +169,7 @@ export async function handleSubscriptionsRoute(request: Request, env: Env, clock
       listEntriesForUser(env.DB, user.id, 100, cursor),
       listEntryStateForUser(env.DB, user.id, cursor)
     ]);
-    return json({ ok: true, feeds, subscriptions, entries, entryState, serverTime, syncCursor: serverTime });
+    return json({ ok: true, feeds, subscriptions, entries: forClient(entries), entryState, serverTime, syncCursor: serverTime });
   }
   if (url.pathname === '/api/subscriptions' && request.method === 'POST') {
     return handleCreateSubscription(request, env, clock);

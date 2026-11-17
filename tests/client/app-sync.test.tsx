@@ -38,6 +38,7 @@ afterEach(() => {
   container = null;
   root = null;
   vi.unstubAllGlobals();
+  window.localStorage.clear(); // App remembers when the server last answered; each case starts with no history
 });
 
 function feed(overrides: Partial<Feed> = {}): Feed {

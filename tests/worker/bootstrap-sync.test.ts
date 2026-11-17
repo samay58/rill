@@ -80,6 +80,20 @@ describe('bootstrap and sync routes', () => {
     expect(payload.syncCursor).toBe(1000);
   });
 
+  it('sends the sanitized copy only, never the raw feed HTML', async () => {
+    const db = new FakeRillD1();
+    db.feeds.push(feed());
+    db.subscriptions.push(subscription());
+    db.entries.push(entry('doubled', { content_html_sanitized: '<p>Clean.</p>', content_html_raw: '<p style="x">Clean.</p><script>1</script>' }));
+
+    for (const path of ['/api/bootstrap', '/api/sync?since=0']) {
+      const response = await handleSubscriptionsRoute(await authed(path), envFor(db), () => 1000);
+      const payload = await response!.json() as { entries: Array<{ content_html_sanitized: string | null; content_html_raw: string | null }> };
+      expect(payload.entries[0].content_html_sanitized).toBe('<p>Clean.</p>');
+      expect(payload.entries[0].content_html_raw).toBeNull();
+    }
+  });
+
   it('returns clean entry preview text even when old D1 rows contain raw markup', async () => {
     const db = new FakeRillD1();
     db.feeds.push(feed({ title: 'Techmeme' }));

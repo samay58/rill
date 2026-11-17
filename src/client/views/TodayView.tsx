@@ -8,6 +8,7 @@ export type ReadingEntry = EntryWithState;
 interface TodayViewProps {
   entries: ReadingEntry[];
   onOpenEntry: (entryId: string) => void;
+  onToggleRead?: (entryId: string) => void;
   onSearch?: () => void;
   onRefresh?: () => void | Promise<void>;
   isRefreshing?: boolean;
@@ -39,25 +40,18 @@ function groupLabel(timestamp: number, now: number): string {
   return 'Earlier';
 }
 
-export function TodayView({ entries, onOpenEntry, onSearch, onRefresh, isRefreshing = false, limit = 25, now = Date.now() }: TodayViewProps) {
+export function TodayView({ entries, onOpenEntry, onToggleRead, onSearch, onRefresh, isRefreshing = false, limit = 300, now = Date.now() }: TodayViewProps) {
   const edition = pinnedEdition(entries, now);
-  const dayStart = startOfLocalDay(now);
-  // An entry opened today stays where it was, dimmed, until the day turns over. Before Nov 16 2026 opening an
-  // entry removed it at once, so leaving the digest for another page lost it and the only way back was
-  // "Mark unread". Read state still means read: the dot goes, the count drops, tomorrow it is gone.
-  const listed = entries
+  // Nothing leaves the list on its own (Nov 16 2026, his words: "the mechanisms for things becoming unread and
+  // disappearing sucks"). Everything from today and yesterday stays, read or not, dimmed once read; anything older
+  // stays until it is read; Archive is the only way to remove one. The list used to show 25 unread at most, so
+  // reading one pulled another up from below, and a read entry vanished at midnight.
+  const keepFrom = startOfLocalDay(now) - 24 * 60 * 60 * 1000;
+  const visibleEntries = entries
     .filter((entry) => entry.id !== edition?.id && entry.archived_at === null)
-    .filter((entry) => entry.read_at === null || entry.read_at >= dayStart)
-    .sort((left, right) => timestampOf(right) - timestampOf(left));
-  const visibleEntries: ReadingEntry[] = [];
-  let unreadShown = 0;
-  for (const entry of listed) {
-    if (entry.read_at === null) {
-      if (unreadShown >= limit) continue;
-      unreadShown += 1;
-    }
-    visibleEntries.push(entry);
-  }
+    .filter((entry) => entry.read_at === null || timestampOf(entry) >= keepFrom || entry.read_at >= keepFrom)
+    .sort((left, right) => timestampOf(right) - timestampOf(left))
+    .slice(0, limit);
   const unreadCount = entries.filter((entry) => entry.read_at === null && entry.archived_at === null).length;
   const groups: Array<{ label: string; entries: ReadingEntry[] }> = [];
   for (const entry of visibleEntries) {
@@ -86,13 +80,13 @@ export function TodayView({ entries, onOpenEntry, onSearch, onRefresh, isRefresh
       <div className="entry-list" aria-label="Today entries">
         {edition ? (
           <div className="edition-pin">
-            <EntryListRow entry={edition} onOpenEntry={onOpenEntry} now={now} edition />
+            <EntryListRow entry={edition} onOpenEntry={onOpenEntry} onToggleRead={onToggleRead} now={now} edition />
           </div>
         ) : null}
         {groups.map((group) => (
           <div className="entry-group" key={group.label}>
             <p className={`day-label${group.label === 'Today' ? '' : ' older-label'}`}>{group.label}</p>
-            {group.entries.map((entry) => <EntryListRow key={entry.id} entry={entry} onOpenEntry={onOpenEntry} now={now} />)}
+            {group.entries.map((entry) => <EntryListRow key={entry.id} entry={entry} onOpenEntry={onOpenEntry} onToggleRead={onToggleRead} now={now} />)}
           </div>
         ))}
         <div className="caught-up-state">
