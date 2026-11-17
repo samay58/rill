@@ -252,6 +252,10 @@ export async function upsertEntry(db: D1Database, entry: NewEntry): Promise<void
       has_remote_images = excluded.has_remote_images,
       content_hash = excluded.content_hash,
       updated_at = excluded.updated_at
+    -- Each poll re-sends every item. An unchanged one kept getting a new updated_at, so every delta sync carried whole
+    -- feeds again; a row holding a letter or a fetched article keeps its fuller copy (migration 0002 enforces the same).
+    WHERE entries.content_hash IS NOT excluded.content_hash
+      AND (entries.content_hash IS NULL OR (entries.content_hash NOT LIKE 'letter:%' AND entries.content_hash NOT LIKE 'extracted:%'))
   `).bind(
     entry.id,
     entry.feed_id,
@@ -327,11 +331,12 @@ export async function updateEntryExtractedContent(
     content.content_text,
     content.content_html_sanitized,
     content.has_remote_images,
-    entryContentHash({
+    // The prefix marks the row as holding the fetched page, which the poller must not replace with the teaser.
+    `extracted:${entryContentHash({
       title,
       content_text: content.content_text,
       content_html_sanitized: content.content_html_sanitized
-    }),
+    })}`,
     now,
     entryId
   ).run();

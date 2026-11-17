@@ -99,7 +99,8 @@ describe('entries routes', () => {
     expect(payload.entry.content_text).toContain('first full paragraph');
     expect(payload.entry.content_html_sanitized).toContain('<p>This is the first full paragraph');
     expect(payload.entry.content_html_sanitized).not.toContain('<script');
-    expect(payload.entry.content_hash).toBe(entryContentHash({
+    // `extracted:` marks the fetched page, so a later poll cannot put the teaser back (migration 0002).
+    expect(payload.entry.content_hash).toBe('extracted:' + entryContentHash({
       title: payload.entry.title,
       content_text: payload.entry.content_text,
       content_html_sanitized: payload.entry.content_html_sanitized
