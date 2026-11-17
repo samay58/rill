@@ -18,9 +18,11 @@ The Opt Out Project starts from a blunt premise: yes, you can live without Big T
 
 Rill reads RSS, Atom, and JSON Feed sources. It shows you what those sources published, in order, without additions. You read what you want. You close it when you are done. The session is finite by design.
 
-- **Today.** New entries, newest first, with the day's Morning Edition held at the top until the next one arrives. Anything you open stays in place, dimmed, until midnight, so leaving and coming back never loses it. There is a bottom.
+- **Today.** New entries, newest first, with the day's Morning Edition held at the top until the next one arrives. Nothing leaves on its own: everything from today and yesterday stays, read or not, dimmed once read, and older entries stay until you read them. Archive is the only way to remove one. Tap an entry's dot to mark it read or unread without opening it. There is a bottom.
+- **Opens at once.** Rill draws what the device already holds, then fetches only what changed. Coming back to the app after a minute and a half catches up by itself.
 - **Back means back.** Reader has its own history entry and `#read/<id>` link, so the browser's Back (a swipe on the iPhone) returns to the list where you left it.
-- **Reader.** One article, clean. Mark it read, save it, archive it, come back later.
+- **Reader.** One article, clean. A feed that sends only a teaser, or a wall of text with no paragraphs, gets the full page fetched when you open it, and keeps it; if the site refuses, the reader says so and points to the original. Mark it read, save it, archive it, come back later. On a Mac: j and k move, Enter opens, Escape goes back, s saves, m flips read, o opens the original.
+- **Letters.** Newsletters that arrive by email (Money Stuff first) are posted from the Mac Mini to `/api/ingest/letter` and replace their feed's teaser with the full letter, keeping read state.
 - **Sources.** Manage your subscriptions. OPML import and export so your feed list is yours to keep.
 - **Search.** Local full-text search. Nothing shipped to a server.
 
