@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ReadingEntry } from './TodayView';
-import { canLoadFullArticle } from './readerContent';
+import { canLoadFullArticle, isTeaser } from './readerContent';
 
 interface ReaderViewProps {
   entry: ReadingEntry;
@@ -73,6 +73,8 @@ export function ReaderView({ entry, onBack, backLabel = 'Today', onSave, onArchi
   const [imagesLoaded, setImagesLoaded] = useState(false);
   const hiddenImages = Math.max(remoteImageCount(entry.content_html_sanitized), entry.has_remote_images ? 1 : 0);
   const canExtractArticle = canLoadFullArticle(entry);
+  // Only a teaser's refusal is worth a line; a full text that merely lacked paragraphs stays as it is.
+  const reportExtraction = canExtractArticle && (isTeaser(entry) || isLoadingFullArticle);
   const safeHtml = entry.content_html_sanitized
     ? imagesLoaded ? htmlWithProxiedImages(entry.content_html_sanitized, entry.id) : htmlWithoutImages(entry.content_html_sanitized)
     : null;
@@ -96,7 +98,7 @@ export function ReaderView({ entry, onBack, backLabel = 'Today', onSave, onArchi
         <h1 id="reader-title">{entry.title ?? 'Untitled'}</h1>
         {entry.saved_at ? <p className="reader-state-note">Saved to Saved</p> : null}
         {/* A teaser fetches the full piece by itself when opened (App.tsx); this line only reports progress or a refusal. */}
-        {canExtractArticle && (isLoadingFullArticle || fullArticleError) ? (
+        {reportExtraction && (isLoadingFullArticle || fullArticleError) ? (
           <div className="reader-extraction-banner" role="status" aria-busy={isLoadingFullArticle}>
             <p>{isLoadingFullArticle ? `Fetching the full piece${siteOf(entry.canonical_url)}…` : `${siteOf(entry.canonical_url, true) || 'The site'} keeps the full piece on its own pages. Open the original to read it there.`}</p>
             {!isLoadingFullArticle ? (

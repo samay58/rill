@@ -50,3 +50,19 @@ describe('readerContent', () => {
     expect(canLoadFullArticle(longEntry)).toBe(false);
   });
 });
+
+describe('which entries fetch the original page on open', () => {
+  const wall = 'A sentence that runs on. '.repeat(60);
+
+  it('fetches a long text that arrived as one block, since the page has the paragraphs', () => {
+    expect(canLoadFullArticle(entry({ summary_text: null, content_text: wall }))).toBe(true);
+  });
+
+  it('leaves a long text with paragraph breaks alone', () => {
+    expect(canLoadFullArticle(entry({ summary_text: null, content_text: `${wall}\n\n${wall}` }))).toBe(false);
+  });
+
+  it('never fetches a video page', () => {
+    expect(canLoadFullArticle(entry({ canonical_url: 'https://www.youtube.com/watch?v=abc' }))).toBe(false);
+  });
+});
