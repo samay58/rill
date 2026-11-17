@@ -1,3 +1,4 @@
+import { decodeTextEntities as decodeEntities, typesetApostrophes } from './displayText';
 import type { UnixMs } from './types';
 
 const DEFAULT_PREVIEW_CHARS = 180;
@@ -30,26 +31,6 @@ export function normalizeText(value: string): string {
     .trim();
 }
 
-function decodeEntities(value: string): string {
-  if (typeof DOMParser !== 'undefined') {
-    const parsed = new DOMParser().parseFromString(`<main>${value}</main>`, 'text/html');
-    return parsed.body.textContent ?? value;
-  }
-
-  return value
-    .replace(/&#(\d+);/g, (_match, code: string) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([0-9a-f]+);/gi, (_match, code: string) => String.fromCodePoint(Number.parseInt(code, 16)))
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/&apos;/gi, "'")
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&mdash;/gi, '—')
-    .replace(/&ndash;/gi, '–')
-    .replace(/&amp;/gi, '&');
-}
-
 function stripHtml(value: string): string {
   return value
     .replace(/<(script|style|iframe|object|embed|form)\b[\s\S]*?<\/\1>/gi, ' ')
@@ -59,8 +40,19 @@ function stripHtml(value: string): string {
     .replace(/<[^>]+>/g, ' ');
 }
 
+// WordPress closes every feed item with "The post <title> appeared first on <site>." It is never part of the piece.
+const WORDPRESS_FOOTER_RE = /\s*\bThe post\b[\s\S]{0,400}?\bappeared first on\b[^.]{0,120}\.?\s*$/i;
+
+export function withoutFeedFooterHtml(html: string): string {
+  return html.replace(/\s*<p>\s*The post\b(?:(?!<\/p>)[\s\S]){0,800}?\bappeared first on\b(?:(?!<\/p>)[\s\S]){0,400}<\/p>\s*$/i, '');
+}
+
 function removeFeedNoise(value: string): string {
   return value
+    .replace(WORDPRESS_FOOTER_RE, ' ')
+    .replace(/\[(?:\.\.\.|…)\]/g, '[…]')
+    // A quotation that opens mid-passage starts with an elision mark; a preview reads better without it.
+    .replace(/^\s*\[…\]\s*/, '')
     .replace(/https?:\/\/\S+/gi, ' ')
     .replace(/\bTechmeme permalink\b/gi, ' ')
     .replace(/\b(permalink|read more|continue reading)\b\s*$/gi, ' ');
@@ -75,8 +67,8 @@ export function plainTextFromMaybeHtml(value: string | null | undefined): string
   }
 
   if (TAG_RE.test(candidate)) candidate = stripHtml(candidate);
-  candidate = removeFeedNoise(decodeEntities(candidate));
-  candidate = normalizeText(candidate);
+  candidate = removeFeedNoise(normalizeText(decodeEntities(candidate)));
+  candidate = typesetApostrophes(normalizeText(candidate));
 
   return candidate.length > 0 ? candidate : null;
 }
@@ -112,7 +104,8 @@ function truncateAtWord(value: string, maxChars: number): string {
   if (value.length <= maxChars) return value;
   const sliced = value.slice(0, maxChars + 1);
   const boundary = sliced.lastIndexOf(' ');
-  const trimmed = sliced.slice(0, boundary > 40 ? boundary : maxChars).trim();
+  // End on a word, never on a dangling mark: no "crown, …" or an open "[…".
+  const trimmed = sliced.slice(0, boundary > 40 ? boundary : maxChars).trim().replace(/(?:\[…?|[\s,;:(“‘"'—–-])+$/u, '');
   return `${trimmed}…`;
 }
 

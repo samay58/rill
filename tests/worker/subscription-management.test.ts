@@ -39,6 +39,26 @@ describe('subscription management routes', () => {
     await expect(unarchive?.json()).resolves.toMatchObject({ ok: true, subscription: { id: 'sub-1', is_archived: 0, updated_at: 1100 } });
   });
 
+  it('names a source and keeps the name through the feed title', async () => {
+    const db = new FakeRillD1();
+    db.feeds.push(feed({ title: 'Matt Levine - Bloomberg Opinion Columnist' }));
+    db.subscriptions.push(subscription());
+
+    const named = await handleSubscriptionsRoute(await authed('/api/subscriptions/sub-1', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: '  Matt   Levine ' })
+    }), envFor(db), () => 1200);
+    await expect(named?.json()).resolves.toMatchObject({ ok: true, subscription: { id: 'sub-1', title: 'Matt Levine', updated_at: 1200 } });
+
+    const cleared = await handleSubscriptionsRoute(await authed('/api/subscriptions/sub-1', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: '' })
+    }), envFor(db), () => 1300);
+    await expect(cleared?.json()).resolves.toMatchObject({ ok: true, subscription: { id: 'sub-1', title: null } });
+  });
+
   it('removes a subscription without deleting the feed row', async () => {
     const db = new FakeRillD1();
     db.feeds.push(feed());

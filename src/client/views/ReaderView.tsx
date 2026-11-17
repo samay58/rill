@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import type { ReadingEntry } from './TodayView';
+import { distinctAuthor } from '../../shared/displayText';
+import { withoutFeedFooterHtml } from '../../shared/entryText';
 import { canLoadFullArticle, isTeaser } from './readerContent';
 
 interface ReaderViewProps {
@@ -75,11 +77,13 @@ export function ReaderView({ entry, onBack, backLabel = 'Today', onSave, onArchi
   const canExtractArticle = canLoadFullArticle(entry);
   // Only a teaser's refusal is worth a line; a full text that merely lacked paragraphs stays as it is.
   const reportExtraction = canExtractArticle && (isTeaser(entry) || isLoadingFullArticle);
-  const safeHtml = entry.content_html_sanitized
-    ? imagesLoaded ? htmlWithProxiedImages(entry.content_html_sanitized, entry.id) : htmlWithoutImages(entry.content_html_sanitized)
+  // Rows stored before the parser dropped WordPress's "appeared first on" line still carry it.
+  const bodyHtml = entry.content_html_sanitized ? withoutFeedFooterHtml(entry.content_html_sanitized) : null;
+  const safeHtml = bodyHtml
+    ? imagesLoaded ? htmlWithProxiedImages(bodyHtml, entry.id) : htmlWithoutImages(bodyHtml)
     : null;
   const paragraphs = safeHtml ? [] : textParagraphs(entry.content_text ?? entry.summary_text);
-  const byline = [entry.source_title, entry.author, formatDate(entry.published_at ?? entry.created_at)].filter(Boolean).join(' · ');
+  const byline = [entry.source_title, distinctAuthor(entry.author, entry.source_title), formatDate(entry.published_at ?? entry.created_at)].filter(Boolean).join(' · ');
 
   return (
     <section className="reader-surface" aria-labelledby="reader-title">

@@ -122,7 +122,7 @@ export async function extractEntryContent(entryId: string): Promise<EntryWithSta
   return payload.entry;
 }
 
-export async function patchSubscription(subscriptionId: string, patch: { folder?: string | null; sort_order?: number; is_archived?: 0 | 1 }): Promise<Subscription> {
+export async function patchSubscription(subscriptionId: string, patch: { folder?: string | null; sort_order?: number; is_archived?: 0 | 1; title?: string | null }): Promise<Subscription> {
   const response = await fetch(`/api/subscriptions/${encodeURIComponent(subscriptionId)}`, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },

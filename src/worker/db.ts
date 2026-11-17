@@ -127,11 +127,12 @@ export interface SubscriptionPatch {
   folder?: string | null;
   sort_order?: number;
   is_archived?: 0 | 1;
+  title?: string | null;
 }
 
 export async function getSubscriptionForUser(db: D1Database, userId: string, subscriptionId: string): Promise<Subscription | null> {
   return db.prepare(`
-    SELECT id, user_id, feed_id, folder, sort_order, is_archived, created_at, updated_at
+    SELECT id, user_id, feed_id, folder, sort_order, is_archived, title, created_at, updated_at
     FROM subscriptions
     WHERE user_id = ? AND id = ?
   `).bind(userId, subscriptionId).first<Subscription>();
@@ -142,12 +143,13 @@ export async function patchSubscription(db: D1Database, userId: string, subscrip
   if (!existing) return null;
   await db.prepare(`
     UPDATE subscriptions
-    SET folder = ?, sort_order = ?, is_archived = ?, updated_at = ?
+    SET folder = ?, sort_order = ?, is_archived = ?, title = ?, updated_at = ?
     WHERE user_id = ? AND id = ?
   `).bind(
     patch.folder === undefined ? existing.folder : patch.folder,
     patch.sort_order === undefined ? existing.sort_order : patch.sort_order,
     patch.is_archived === undefined ? existing.is_archived : patch.is_archived,
+    patch.title === undefined ? existing.title ?? null : patch.title,
     now,
     userId,
     subscriptionId
@@ -169,7 +171,7 @@ export async function listSubscriptions(db: D1Database, userId: string, since?: 
   const sinceClause = since === undefined ? '' : 'AND updated_at > ?';
   const args = since === undefined ? [userId] : [userId, since];
   const result = await db.prepare(`
-    SELECT id, user_id, feed_id, folder, sort_order, is_archived, created_at, updated_at
+    SELECT id, user_id, feed_id, folder, sort_order, is_archived, title, created_at, updated_at
     FROM subscriptions
     WHERE user_id = ? ${sinceClause}
     ORDER BY sort_order ASC, created_at ASC
@@ -223,7 +225,7 @@ export async function listEntryStateForUser(db: D1Database, userId: string, sinc
 
 export async function listSubscriptionFeedExports(db: D1Database, userId: string): Promise<SubscriptionFeedExport[]> {
   const result = await db.prepare(`
-    SELECT f.title, f.canonical_feed_url, f.site_url, sub.folder
+    SELECT COALESCE(sub.title, f.title) AS title, f.canonical_feed_url, f.site_url, sub.folder
     FROM subscriptions sub
     JOIN feeds f ON f.id = sub.feed_id
     WHERE sub.user_id = ? AND sub.is_archived = 0
@@ -282,7 +284,7 @@ export async function listTodayEntries(db: D1Database, userId: string, limit = 2
   if (cursorPublishedAt !== undefined) params.push(cursorPublishedAt);
   params.push(limit);
   const result = await db.prepare(`
-    SELECT e.*, f.title AS source_title, s.read_at, s.saved_at, s.archived_at, s.last_opened_at
+    SELECT e.*, COALESCE(sub.title, f.title) AS source_title, s.read_at, s.saved_at, s.archived_at, s.last_opened_at
     FROM entries e
     JOIN feeds f ON f.id = e.feed_id
     JOIN subscriptions sub ON sub.feed_id = e.feed_id AND sub.user_id = ? AND sub.is_archived = 0
@@ -296,7 +298,7 @@ export async function listTodayEntries(db: D1Database, userId: string, limit = 2
 
 export async function getEntryForUser(db: D1Database, userId: string, entryId: string): Promise<EntryWithState | null> {
   const entry = await db.prepare(`
-    SELECT e.*, f.title AS source_title, s.read_at, s.saved_at, s.archived_at, s.last_opened_at
+    SELECT e.*, COALESCE(sub.title, f.title) AS source_title, s.read_at, s.saved_at, s.archived_at, s.last_opened_at
     FROM entries e
     JOIN feeds f ON f.id = e.feed_id
     JOIN subscriptions sub ON sub.feed_id = e.feed_id AND sub.user_id = ? AND sub.is_archived = 0
@@ -347,7 +349,7 @@ export async function updateEntryExtractedContent(
 export async function searchEntries(db: D1Database, userId: string, query: string, limit = 25): Promise<EntryWithState[]> {
   const candidateLimit = Math.max(100, Math.min(500, limit * 20));
   const result = await db.prepare(`
-    SELECT e.*, f.title AS source_title, s.read_at, s.saved_at, s.archived_at, s.last_opened_at
+    SELECT e.*, COALESCE(sub.title, f.title) AS source_title, s.read_at, s.saved_at, s.archived_at, s.last_opened_at
     FROM entries e
     JOIN feeds f ON f.id = e.feed_id
     JOIN subscriptions sub ON sub.feed_id = e.feed_id AND sub.user_id = ? AND sub.is_archived = 0

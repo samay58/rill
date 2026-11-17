@@ -1,7 +1,7 @@
 import { parseDocument } from 'htmlparser2';
 import render from 'dom-serializer';
 import type { AnyNode, Element, Text } from 'domhandler';
-import { normalizeText, plainTextFromMaybeHtml } from '../entryText';
+import { normalizeText, plainTextFromMaybeHtml, withoutFeedFooterHtml } from '../entryText';
 
 const BLOCKED_TAGS = new Set(['script', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'textarea', 'select', 'style', 'link', 'meta', 'source', 'video', 'audio', 'track']);
 const URL_ATTRS = new Set(['href', 'src', 'poster']);
@@ -69,7 +69,7 @@ function cleanNode(node: AnyNode, options: SanitizeHtmlOptions = {}): AnyNode | 
 export function sanitizeFeedHtml(html: string, options: SanitizeHtmlOptions = {}): string {
   const document = parseDocument(html, { decodeEntities: true });
   document.children = document.children.map((child) => cleanNode(child, options)).filter((child): child is AnyNode => child !== null);
-  return render(document.children, { encodeEntities: 'utf8' });
+  return withoutFeedFooterHtml(render(document.children, { encodeEntities: 'utf8' }));
 }
 
 function isTextNode(node: AnyNode): node is Text {

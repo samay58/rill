@@ -34,7 +34,7 @@ class FakeStatement {
     const state = this.entryState(entry.id);
     return {
       ...entry,
-      source_title: feed?.title ?? null,
+      source_title: this.db.subscriptions.find((sub) => sub.user_id === this.db.user.id && sub.feed_id === entry.feed_id)?.title ?? feed?.title ?? null,
       read_at: state?.read_at ?? null,
       saved_at: state?.saved_at ?? null,
       archived_at: state?.archived_at ?? null,
@@ -133,7 +133,7 @@ class FakeStatement {
         .filter((subscription) => subscription.user_id === userId && subscription.is_archived === 0)
         .map((subscription) => {
           const feed = this.db.feeds.find((candidate) => candidate.id === subscription.feed_id);
-          return feed ? { title: feed.title, canonical_feed_url: feed.canonical_feed_url, site_url: feed.site_url, folder: subscription.folder } : null;
+          return feed ? { title: subscription.title ?? feed.title, canonical_feed_url: feed.canonical_feed_url, site_url: feed.site_url, folder: subscription.folder } : null;
         })
         .filter((row): row is { title: string | null; canonical_feed_url: string; site_url: string | null; folder: string | null } => row !== null);
       return { results: rows as T[], success: true, meta: {} };
@@ -179,12 +179,13 @@ class FakeStatement {
 
 
   private updateSubscription(): void {
-    const [folder, sort_order, is_archived, updated_at, user_id, id] = this.args as [string | null, number, 0 | 1, UnixMs, string, string];
+    const [folder, sort_order, is_archived, title, updated_at, user_id, id] = this.args as [string | null, number, 0 | 1, string | null, UnixMs, string, string];
     const subscription = this.db.subscriptions.find((candidate) => candidate.user_id === user_id && candidate.id === id);
     if (!subscription) return;
     subscription.folder = folder;
     subscription.sort_order = sort_order;
     subscription.is_archived = is_archived;
+    subscription.title = title;
     subscription.updated_at = updated_at;
   }
 

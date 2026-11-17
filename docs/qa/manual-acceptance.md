@@ -19,7 +19,7 @@ If the browser still shows an old UI after a code change, stop Wrangler, rerun `
 2. Subscribe to Opt Out Project with `https://www.optoutproject.net/feed/`.
 3. Discover another site feed from a normal site URL.
 4. Read Today and confirm the list is finite, calm, and sorted newest first.
-5. Confirm Today previews are compact: no raw `<p>`, `href=`, `target=`, or long article-body dumps appear in the list. Each preview is plain text and visually capped at two lines.
+5. Confirm Today previews are compact: no raw `<p>`, `href=`, `target=`, or long article-body dumps appear in the list. Each preview is plain text and visually capped at two lines. Titles and source names show no raw codes (`&#8217;`, `&amp;`), apostrophes and quotes are curly throughout, and no preview or article ends with WordPress's "The post … appeared first on" line.
 6. Open Reader and confirm the entry is marked read.
 7. Save an entry, confirm the Reader button changes to `Saved`, then open Saved and confirm the entry is there.
 8. Mark that saved entry unread; saved state must remain separate from read state.

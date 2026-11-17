@@ -2,6 +2,7 @@ import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import type { FeedType, UnixMs } from '../types';
 import { canonicalizeUrl, resolveUrl } from '../url';
 import { dedupeEntries, type NormalizedEntry, type ParsedFeed, stableEntryId } from './normalize';
+import { cleanLine } from '../displayText';
 import { cleanFeedText, extractRemoteImages, htmlToPlainText, sanitizeFeedHtml } from './sanitize';
 
 const xmlParser = new XMLParser({
@@ -80,8 +81,8 @@ function parseRss(root: UnknownRecord, feedUrl: string): ParsedFeed {
     return {
       stable_external_id: stableEntryId(feedUrl, { externalId: rssGuid(item), url, title, publishedAt: published }),
       canonical_url: url,
-      title,
-      author: textOf(item.author) ?? textOf(item['dc:creator']),
+      title: cleanLine(title),
+      author: cleanLine(textOf(item.author) ?? textOf(item['dc:creator'])),
       published_at: published,
       updated_at_feed: parseDate(item.updated),
       summary_text: cleanFeedText(summary),
@@ -90,7 +91,7 @@ function parseRss(root: UnknownRecord, feedUrl: string): ParsedFeed {
   });
   return {
     feed_type: 'rss',
-    title: feedTitle,
+    title: cleanLine(feedTitle),
     site_url: siteUrl,
     description: textOf(channel.description),
     language: textOf(channel.language),
@@ -118,8 +119,8 @@ function parseAtom(root: UnknownRecord, feedUrl: string): ParsedFeed {
     return {
       stable_external_id: stableEntryId(feedUrl, { externalId: textOf(entry.id), url, title, publishedAt: published }),
       canonical_url: url,
-      title,
-      author: textOf(asRecord(entry.author).name),
+      title: cleanLine(title),
+      author: cleanLine(textOf(asRecord(entry.author).name)),
       published_at: published,
       updated_at_feed: parseDate(entry.updated),
       summary_text: cleanFeedText(summary),
@@ -128,7 +129,7 @@ function parseAtom(root: UnknownRecord, feedUrl: string): ParsedFeed {
   });
   return {
     feed_type: 'atom',
-    title: textOf(feed.title),
+    title: cleanLine(textOf(feed.title)),
     site_url: normalizeUrl(atomLink(feed.link), feedUrl),
     description: textOf(feed.subtitle),
     language: textOf(feed.lang),
@@ -160,8 +161,8 @@ function parseJsonFeed(json: UnknownRecord, feedUrl: string): ParsedFeed {
     return {
       stable_external_id: stableEntryId(feedUrl, { externalId: item.id, url, title, publishedAt: published }),
       canonical_url: url,
-      title,
-      author: item.author?.name ?? item.authors?.[0]?.name ?? null,
+      title: cleanLine(title),
+      author: cleanLine(item.author?.name ?? item.authors?.[0]?.name),
       published_at: published,
       updated_at_feed: parseDate(item.date_modified),
       summary_text: cleanFeedText(item.summary ?? null),
@@ -170,7 +171,7 @@ function parseJsonFeed(json: UnknownRecord, feedUrl: string): ParsedFeed {
   });
   return {
     feed_type: 'json',
-    title: textOf(json.title),
+    title: cleanLine(textOf(json.title)),
     site_url: normalizeUrl(textOf(json.home_page_url), feedUrl),
     description: textOf(json.description),
     language: textOf(json.language),

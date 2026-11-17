@@ -415,7 +415,7 @@ describe('Today and Reader', () => {
       json: async () => ({ ok: true, entry: extracted })
     }));
     vi.stubGlobal('fetch', fetch);
-    const host = render(<App
+    render(<App
       initialUnlocked
       initialEntries={[teaser]}
       localStore={store}

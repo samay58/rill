@@ -2,7 +2,7 @@
 
 This handoff supersedes the generic visual language in the first scaffold. The active design direction is **Notebook**. Build from these assets and tokens, not from a fresh interpretation.
 
-Full product spec: `docs/specs/2026-04-27-rill-design.md`.
+How the product behaves today: `README.md`. Icon source art: `docs/design/icon-source/`.
 
 ## Reference assets
 

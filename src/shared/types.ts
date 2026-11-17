@@ -40,6 +40,8 @@ export interface Subscription {
   folder: string | null;
   sort_order: number;
   is_archived: 0 | 1;
+  // The reader's name for the source; null or absent means the feed's own title.
+  title?: string | null;
   created_at: UnixMs;
   updated_at: UnixMs;
 }

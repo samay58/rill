@@ -23,7 +23,8 @@ Rill reads RSS, Atom, and JSON Feed sources. It shows you what those sources pub
 - **Back means back.** Reader has its own history entry and `#read/<id>` link, so the browser's Back (a swipe on the iPhone) returns to the list where you left it.
 - **Reader.** One article, clean. A feed that sends only a teaser, or a wall of text with no paragraphs, gets the full page fetched when you open it, and keeps it; if the site refuses, the reader says so and points to the original. Mark it read, save it, archive it, come back later. On a Mac: j and k move, Enter opens, Escape goes back, s saves, m flips read, o opens the original.
 - **Letters.** Newsletters that arrive by email (Money Stuff first) are posted from the Mac Mini to `/api/ingest/letter` and replace their feed's teaser with the full letter, keeping read state.
-- **Sources.** Manage your subscriptions. OPML import and export so your feed list is yours to keep.
+- **Sources.** Manage your subscriptions. A source keeps the name you give it (`title` on `PATCH /api/subscriptions/:id`); a feed's own tagline never comes back on the next poll. OPML import and export so your feed list is yours to keep.
+- **Clean text.** Titles, names and previews read as typeset text: escaped characters decoded, quotes curly, WordPress's "appeared first on" line and a quotation's leading "[…]" dropped. Rows stored before a rule existed are cleaned as they load.
 - **Search.** Local full-text search. Nothing shipped to a server.
 
 ## How it is built

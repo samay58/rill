@@ -50,6 +50,7 @@ function parseSubscriptionPatch(body: Record<string, unknown>): SubscriptionPatc
   const patch: SubscriptionPatch = {};
   if (body.folder === null || typeof body.folder === 'string') patch.folder = body.folder;
   if (typeof body.sort_order === 'number' && Number.isFinite(body.sort_order)) patch.sort_order = Math.floor(body.sort_order);
+  if (body.title === null || typeof body.title === 'string') patch.title = typeof body.title === 'string' ? body.title.replace(/\s+/g, ' ').trim().slice(0, 80) || null : null;
   if (body.is_archived === 0 || body.is_archived === 1 || typeof body.is_archived === 'boolean') patch.is_archived = body.is_archived === true ? 1 : body.is_archived === false ? 0 : body.is_archived;
   return patch;
 }

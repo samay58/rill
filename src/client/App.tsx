@@ -4,6 +4,7 @@ import { extractEntryContent, importOpml, patchSubscription as patchRemoteSubscr
 import { getMetaValue, type LocalStore, openRillLocalStore } from './db';
 import { defaultSyncApi, loadCachedState, queueEntryStateMutation, replayPendingMutations, syncSince, bootstrapFromServer, type CachedClientState, type RillSyncApi } from './sync';
 import type { Entry, EntryStatePatch, EntryUserState, Feed, Subscription, UnixMs } from '../shared/types';
+import { cleanLine } from '../shared/displayText';
 import { AddSourceView } from './views/AddSourceView';
 import { ReaderView } from './views/ReaderView';
 import { SavedView } from './views/SavedView';
@@ -41,8 +42,14 @@ function selectedEntryId(route: AppRoute): string | null {
   return route.startsWith('reader:') ? route.slice('reader:'.length) : null;
 }
 
+// Rows stored before the parser cleaned titles still hold raw feed text (`&#8217;`, doubled spaces); clean on the way in.
+function presentEntry<T extends Pick<Entry, 'title' | 'author'>>(entry: T): T {
+  return { ...entry, title: cleanLine(entry.title), author: cleanLine(entry.author) };
+}
+
 function entriesFromCache(cache: CachedClientState): ReadingEntry[] {
-  const feedTitles = new Map(cache.feeds.map((feed) => [feed.id, feed.title]));
+  const subscriptionTitles = new Map(cache.subscriptions.map((subscription) => [subscription.feed_id, subscription.title ?? null]));
+  const feedTitles = new Map(cache.feeds.map((feed) => [feed.id, subscriptionTitles.get(feed.id) ?? feed.title]));
   const stateByEntry = new Map(cache.entryState.map((state) => [state.entry_id, state]));
   const activeFeeds = new Set(cache.subscriptions.filter((subscription) => subscription.is_archived === 0).map((subscription) => subscription.feed_id));
   return cache.entries
@@ -50,8 +57,8 @@ function entriesFromCache(cache: CachedClientState): ReadingEntry[] {
     .map((entry) => {
       const state = stateByEntry.get(entry.id);
       return {
-        ...entry,
-        source_title: feedTitles.get(entry.feed_id) ?? null,
+        ...presentEntry(entry),
+        source_title: cleanLine(feedTitles.get(entry.feed_id)),
         read_at: state?.read_at ?? null,
         saved_at: state?.saved_at ?? null,
         archived_at: state?.archived_at ?? null,
@@ -95,7 +102,7 @@ function sourceRows(feeds: Feed[], subscriptions: Subscription[], entries: Readi
     const unreadCount = entries.filter((entry) => entry.feed_id === subscription.feed_id && entry.read_at === null && entry.archived_at === null).length;
     return {
       id: subscription.id,
-      title: feed?.title ?? feed?.canonical_feed_url ?? 'Untitled source',
+      title: cleanLine(subscription.title) ?? cleanLine(feed?.title) ?? feed?.canonical_feed_url ?? 'Untitled source',
       url: feed?.canonical_feed_url ?? subscription.feed_id,
       siteUrl: feed?.site_url ?? null,
       updatedAt: feed?.updated_at ?? subscription.updated_at,
@@ -130,8 +137,8 @@ function entryRowFromReadingEntry(entry: ReadingEntry): Entry {
 function mergeExtractedEntry(current: ReadingEntry, extracted: ReadingEntry): ReadingEntry {
   return {
     ...current,
-    ...entryRowFromReadingEntry(extracted),
-    source_title: extracted.source_title ?? current.source_title,
+    ...presentEntry(entryRowFromReadingEntry(extracted)),
+    source_title: current.source_title ?? cleanLine(extracted.source_title),
     read_at: current.read_at,
     saved_at: current.saved_at,
     archived_at: current.archived_at,
